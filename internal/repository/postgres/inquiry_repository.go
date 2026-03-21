@@ -56,6 +56,7 @@ func (r *inquiryRepository) FindByBuyerID(
 
 	err := query.
 		Preload("Listing").
+		Preload("Listing.User").
 		Preload("Seller").
 		Order("created_at DESC").
 		Limit(perPage).
@@ -81,6 +82,7 @@ func (r *inquiryRepository) FindBySellerID(
 
 	err := query.
 		Preload("Listing").
+		Preload("Listing.User").
 		Preload("Buyer").
 		Order("created_at DESC").
 		Limit(perPage).

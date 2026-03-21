@@ -49,6 +49,7 @@ type InquiryResponse struct {
 type InquirySummary struct {
 	ID        uuid.UUID            `json:"id"`
 	ListingID uuid.UUID            `json:"listing_id"`
+	Listing   *ListingCardResponse `json:"listing,omitempty"`
 	Message   string               `json:"message"`
 	Status    domain.InquiryStatus `json:"status"`
 	Buyer     UserSummary          `json:"buyer"`
@@ -73,9 +74,16 @@ func ToInquiryResponse(i domain.Inquiry) InquiryResponse {
 
 // ToInquirySummary maps a domain.Inquiry to the lightweight summary DTO.
 func ToInquirySummary(i domain.Inquiry) InquirySummary {
+	var listingSummary *ListingCardResponse
+	if i.Listing.ID != uuid.Nil {
+		summary := ToListingCardResponse(i.Listing)
+		listingSummary = &summary
+	}
+
 	return InquirySummary{
 		ID:        i.ID,
 		ListingID: i.ListingID,
+		Listing:   listingSummary,
 		Message:   i.Message,
 		Status:    i.Status,
 		Buyer:     ToUserSummary(i.Buyer),

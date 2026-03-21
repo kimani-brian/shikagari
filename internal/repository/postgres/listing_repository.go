@@ -69,7 +69,10 @@ func (r *listingRepository) Search(filters dto.ListingFilterRequest) ([]domain.L
 	// ── Filters ───────────────────────────────────────────────────────────────
 
 	if filters.Location != "" {
-		query = query.Where("listings.location = ?", filters.Location)
+		query = query.Where("LOWER(listings.location) = LOWER(?)", filters.Location)
+	}
+	if filters.BodyType != "" {
+		query = query.Where("listings.body_type = ?", filters.BodyType)
 	}
 	if filters.Make != "" {
 		query = query.Where("LOWER(listings.make) = LOWER(?)", filters.Make)

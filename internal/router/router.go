@@ -27,7 +27,7 @@ func Setup(cfg *config.Config, db *gorm.DB) *gin.Engine {
 
 	// ── 2. Global middleware ──────────────────────────────────────────────────
 	r.Use(middleware.Logger())
-	r.Use(middleware.CORS())
+	r.Use(middleware.CORS(cfg.App.AllowedOrigins))
 	r.Use(gin.Recovery()) // Recover from panics; return 500
 
 	// ── 3. Static file serving for uploaded images ────────────────────────────
@@ -95,6 +95,9 @@ func wireDependencies(cfg *config.Config, db *gorm.DB) *deps {
 
 	// ── Repositories ─────────────────────────────────────────────────────────
 	userRepo := postgres.NewUserRepository(db)
+	resetTokenRepo := postgres.NewPasswordResetTokenRepository(db)
+	sessionRepo := postgres.NewSessionRepository(db)
+	securityEventRepo := postgres.NewSecurityEventRepository(db)
 	dealerRepo := postgres.NewDealerRepository(db)
 	privateSellerRepo := postgres.NewPrivateSellerRepository(db)
 	listingRepo := postgres.NewListingRepository(db)
@@ -102,7 +105,7 @@ func wireDependencies(cfg *config.Config, db *gorm.DB) *deps {
 	inquiryRepo := postgres.NewInquiryRepository(db)
 
 	// ── Services ──────────────────────────────────────────────────────────────
-	authSvc := service.NewAuthService(userRepo, hasher, jwtManager)
+	authSvc := service.NewAuthService(userRepo, resetTokenRepo, sessionRepo, securityEventRepo, hasher, jwtManager)
 	userSvc := service.NewUserService(userRepo, hasher)
 	dealerSvc := service.NewDealerService(dealerRepo, userRepo)
 	privateSellerSvc := service.NewPrivateSellerService(privateSellerRepo, userRepo)
@@ -121,8 +124,8 @@ func wireDependencies(cfg *config.Config, db *gorm.DB) *deps {
 
 	return &deps{
 		jwtManager:           jwtManager,
-		authMW:               middleware.Authenticate(jwtManager),
-		optAuthMW:            middleware.OptionalAuthenticate(jwtManager),
+		authMW:               middleware.Authenticate(jwtManager, sessionRepo),
+		optAuthMW:            middleware.OptionalAuthenticate(jwtManager, sessionRepo),
 		authHandler:          authH,
 		userHandler:          userH,
 		dealerHandler:        dealerH,
@@ -139,15 +142,27 @@ func wireDependencies(cfg *config.Config, db *gorm.DB) *deps {
 //
 //	POST   /api/v1/auth/register
 //	POST   /api/v1/auth/login
-//	GET    /api/v1/auth/me        [auth required]
+//	POST   /api/v1/auth/password/reset-request
+//	POST   /api/v1/auth/password/reset
+//	GET    /api/v1/auth/me                 [auth required]
+//	GET    /api/v1/auth/security-events    [auth required]
+//	GET    /api/v1/auth/sessions           [auth required]
+//	DELETE /api/v1/auth/sessions/:id       [auth required]
+//	POST   /api/v1/auth/logout             [auth required]
 func registerAuthRoutes(rg *gin.RouterGroup, d *deps) {
 	auth := rg.Group("/auth")
 	{
 		auth.POST("/register", d.authHandler.Register)
 		auth.POST("/login", d.authHandler.Login)
+		auth.POST("/password/reset-request", d.authHandler.RequestPasswordReset)
+		auth.POST("/password/reset", d.authHandler.ResetPassword)
 
 		// Protected: returns current user info from JWT
 		auth.GET("/me", d.authMW, d.authHandler.Me)
+		auth.GET("/security-events", d.authMW, d.authHandler.ListSecurityEvents)
+		auth.GET("/sessions", d.authMW, d.authHandler.ListSessions)
+		auth.DELETE("/sessions/:id", d.authMW, d.authHandler.RevokeSession)
+		auth.POST("/logout", d.authMW, d.authHandler.Logout)
 	}
 }
 

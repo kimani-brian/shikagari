@@ -26,6 +26,20 @@ const (
 	TransmissionManual    Transmission = "manual"
 )
 
+// BodyType represents the vehicle's body style/category
+type BodyType string
+
+const (
+	BodyTypeSUV       BodyType = "SUV"
+	BodyTypeSedan     BodyType = "Sedan"
+	BodyTypeHatchback BodyType = "Hatchback"
+	BodyTypePickup    BodyType = "Pickup"
+	BodyTypeCoupe     BodyType = "Coupe"
+	BodyTypeEV        BodyType = "EV"
+	BodyTypeVan       BodyType = "Van"
+	BodyTypeWagon     BodyType = "Wagon"
+)
+
 // ListingStatus tracks the visibility/state of a listing
 type ListingStatus string
 
@@ -55,6 +69,7 @@ type Listing struct {
 	Description string        `gorm:"type:text"                                      json:"description"`
 	PriceKES    float64       `gorm:"type:numeric(15,2);not null"                    json:"price_kes"` // Kenya Shillings
 	Location    string        `gorm:"type:varchar(100);not null;index"               json:"location"`
+	BodyType    BodyType      `gorm:"type:varchar(20);not null;default:'SUV'"        json:"body_type"`
 	Status      ListingStatus `gorm:"type:varchar(20);not null;default:'active'"     json:"status"`
 
 	// Vehicle specifications

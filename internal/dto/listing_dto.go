@@ -15,6 +15,7 @@ type CreateListingRequest struct {
 	Description  string  `json:"description"  binding:"omitempty,max=5000"`
 	PriceKES     float64 `json:"price_kes"    binding:"required,gte=0"`
 	Location     string  `json:"location"     binding:"required,oneof=Nairobi Mombasa Kisumu Nakuru Eldoret Thika Malindi Nyeri Machakos Kisii Kericho Garissa Meru Kakamega Other"`
+	BodyType     string  `json:"body_type"    binding:"required,oneof=SUV Sedan Hatchback Pickup Coupe EV Van Wagon"`
 	Make         string  `json:"make"         binding:"required,min=1,max=100"`
 	Model        string  `json:"model"        binding:"required,min=1,max=100"`
 	Year         int     `json:"year"         binding:"required,gte=1980,lte=2025"`
@@ -33,6 +34,7 @@ type UpdateListingRequest struct {
 	Description  *string  `json:"description"  binding:"omitempty,max=5000"`
 	PriceKES     *float64 `json:"price_kes"    binding:"omitempty,gte=0"`
 	Location     *string  `json:"location"     binding:"omitempty,oneof=Nairobi Mombasa Kisumu Nakuru Eldoret Thika Malindi Nyeri Machakos Kisii Kericho Garissa Meru Kakamega Other"`
+	BodyType     *string  `json:"body_type"    binding:"omitempty,oneof=SUV Sedan Hatchback Pickup Coupe EV Van Wagon"`
 	Make         *string  `json:"make"         binding:"omitempty,min=1,max=100"`
 	Model        *string  `json:"model"        binding:"omitempty,min=1,max=100"`
 	Year         *int     `json:"year"         binding:"omitempty,gte=1980,lte=2025"`
@@ -47,6 +49,7 @@ type UpdateListingRequest struct {
 type ListingFilterRequest struct {
 	Search       string  `form:"search"`
 	Location     string  `form:"location"`
+	BodyType     string  `form:"body_type"      binding:"omitempty,oneof=SUV Sedan Hatchback Pickup Coupe EV Van Wagon"`
 	Make         string  `form:"make"`
 	Model        string  `form:"model"`
 	MinYear      int     `form:"min_year"`
@@ -70,6 +73,7 @@ type ListingResponse struct {
 	Description  string               `json:"description"`
 	PriceKES     float64              `json:"price_kes"`
 	Location     string               `json:"location"`
+	BodyType     domain.BodyType      `json:"body_type"`
 	Status       domain.ListingStatus `json:"status"`
 	SellerType   domain.SellerType    `json:"seller_type"`
 	Make         string               `json:"make"`
@@ -95,20 +99,23 @@ type ListingResponse struct {
 // Excludes description and full seller detail to keep payloads small —
 // critical for mobile and low-bandwidth users.
 type ListingCardResponse struct {
-	ID           uuid.UUID           `json:"id"`
-	Title        string              `json:"title"`
-	PriceKES     float64             `json:"price_kes"`
-	Location     string              `json:"location"`
-	Make         string              `json:"make"`
-	Model        string              `json:"model"`
-	Year         int                 `json:"year"`
-	Mileage      int                 `json:"mileage"`
-	FuelType     domain.FuelType     `json:"fuel_type"`
-	Transmission domain.Transmission `json:"transmission"`
-	ThumbnailURL string              `json:"thumbnail_url"` // first image only
-	SellerType   domain.SellerType   `json:"seller_type"`
-	IsVerified   bool                `json:"is_verified"` // seller verified badge
-	CreatedAt    time.Time           `json:"created_at"`
+	ID           uuid.UUID            `json:"id"`
+	Title        string               `json:"title"`
+	PriceKES     float64              `json:"price_kes"`
+	Location     string               `json:"location"`
+	BodyType     domain.BodyType      `json:"body_type"`
+	Status       domain.ListingStatus `json:"status"`
+	Make         string               `json:"make"`
+	Model        string               `json:"model"`
+	Year         int                  `json:"year"`
+	Mileage      int                  `json:"mileage"`
+	FuelType     domain.FuelType      `json:"fuel_type"`
+	Transmission domain.Transmission  `json:"transmission"`
+	ThumbnailURL string               `json:"thumbnail_url"` // first image only
+	ViewCount    int                  `json:"view_count"`
+	SellerType   domain.SellerType    `json:"seller_type"`
+	IsVerified   bool                 `json:"is_verified"` // seller verified badge
+	CreatedAt    time.Time            `json:"created_at"`
 }
 
 // ToListingResponse maps a domain.Listing to the full response DTO.
@@ -124,6 +131,7 @@ func ToListingResponse(l domain.Listing) ListingResponse {
 		Description:  l.Description,
 		PriceKES:     l.PriceKES,
 		Location:     l.Location,
+		BodyType:     l.BodyType,
 		Status:       l.Status,
 		SellerType:   l.SellerType,
 		Make:         l.Make,
@@ -165,6 +173,8 @@ func ToListingCardResponse(l domain.Listing) ListingCardResponse {
 		Title:        l.Title,
 		PriceKES:     l.PriceKES,
 		Location:     l.Location,
+		BodyType:     l.BodyType,
+		Status:       l.Status,
 		Make:         l.Make,
 		Model:        l.Model,
 		Year:         l.Year,
@@ -172,6 +182,7 @@ func ToListingCardResponse(l domain.Listing) ListingCardResponse {
 		FuelType:     l.FuelType,
 		Transmission: l.Transmission,
 		ThumbnailURL: thumbnail,
+		ViewCount:    l.ViewCount,
 		SellerType:   l.SellerType,
 		IsVerified:   l.User.IsVerified,
 		CreatedAt:    l.CreatedAt,

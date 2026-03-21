@@ -50,6 +50,7 @@ func (s *ListingService) Create(
 		Description:  req.Description,
 		PriceKES:     req.PriceKES,
 		Location:     req.Location,
+		BodyType:     domain.BodyType(req.BodyType),
 		Make:         req.Make,
 		Model:        req.Model,
 		Year:         req.Year,
@@ -171,6 +172,9 @@ func (s *ListingService) Update(
 	}
 	if req.Location != nil {
 		listing.Location = *req.Location
+	}
+	if req.BodyType != nil {
+		listing.BodyType = domain.BodyType(*req.BodyType)
 	}
 	if req.Make != nil {
 		listing.Make = *req.Make

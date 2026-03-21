@@ -60,6 +60,9 @@ func runMigrations(db *gorm.DB) {
 		&domain.Listing{},
 		&domain.Favorite{},
 		&domain.Inquiry{},
+		&domain.PasswordResetToken{},
+		&domain.SecurityEvent{},
+		&domain.UserSession{},
 	)
 	if err != nil {
 		log.Fatalf("[database] FATAL: migration failed: %v", err)
@@ -94,6 +97,23 @@ func applyCustomIndexes(db *gorm.DB) error {
 
 		`CREATE INDEX IF NOT EXISTS idx_listings_status
          ON listings (status)`,
+
+		// Account security analytics
+		`CREATE INDEX IF NOT EXISTS idx_security_events_user_id
+         ON security_events (user_id)`,
+
+		`CREATE INDEX IF NOT EXISTS idx_security_events_created_at
+         ON security_events (created_at DESC)`,
+
+		// Session lifecycle management
+		`CREATE INDEX IF NOT EXISTS idx_user_sessions_user_id
+         ON user_sessions (user_id)`,
+
+		`CREATE INDEX IF NOT EXISTS idx_user_sessions_revoked_at
+         ON user_sessions (revoked_at)`,
+
+		`CREATE INDEX IF NOT EXISTS idx_user_sessions_last_active
+         ON user_sessions (last_active DESC)`,
 	}
 
 	for _, query := range indexes {

@@ -14,6 +14,7 @@ import (
 // to keep token size small (important for mobile/low-bandwidth users).
 type Claims struct {
 	UserID     uuid.UUID       `json:"user_id"`
+	SessionID  uuid.UUID       `json:"session_id"`
 	Email      string          `json:"email"`
 	Role       domain.UserRole `json:"role"`
 	IsVerified bool            `json:"is_verified"`
@@ -37,11 +38,12 @@ func New(secret string, expiryHours int) *Manager {
 
 // Generate creates and signs a new JWT for the given user.
 // The token encodes the user's ID, email, role, and verified status.
-func (m *Manager) Generate(user *domain.User) (string, error) {
+func (m *Manager) Generate(user *domain.User, sessionID uuid.UUID) (string, error) {
 	now := time.Now()
 
 	claims := Claims{
 		UserID:     user.ID,
+		SessionID:  sessionID,
 		Email:      user.Email,
 		Role:       user.Role,
 		IsVerified: user.IsVerified,

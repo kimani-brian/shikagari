@@ -5,6 +5,7 @@ import (
 	"log"
 	"os"
 	"strconv"
+	"strings"
 
 	"github.com/joho/godotenv"
 )
@@ -19,9 +20,10 @@ type Config struct {
 }
 
 type AppConfig struct {
-	Env  string
-	Port string
-	Name string
+	Env            string
+	Port           string
+	Name           string
+	AllowedOrigins []string
 }
 
 type DatabaseConfig struct {
@@ -63,9 +65,10 @@ func Load() *Config {
 
 	return &Config{
 		App: AppConfig{
-			Env:  getEnv("APP_ENV", "development"),
-			Port: getEnv("APP_PORT", "8080"),
-			Name: getEnv("APP_NAME", "ShikaGari"),
+			Env:            getEnv("APP_ENV", "development"),
+			Port:           getEnv("APP_PORT", "8080"),
+			Name:           getEnv("APP_NAME", "ShikaGari"),
+			AllowedOrigins: getEnvAsSlice("CORS_ALLOWED_ORIGINS", []string{"http://localhost:3000"}),
 		},
 		Database: DatabaseConfig{
 			Host:     getEnv("DB_HOST", "localhost"),
@@ -117,4 +120,23 @@ func getEnvInt(key string, fallback int) int {
 		return fallback
 	}
 	return val
+}
+
+func getEnvAsSlice(key string, fallback []string) []string {
+	raw := os.Getenv(key)
+	if raw == "" {
+		return fallback
+	}
+	parts := strings.Split(raw, ",")
+	result := make([]string, 0, len(parts))
+	for _, part := range parts {
+		trimmed := strings.TrimSpace(part)
+		if trimmed != "" {
+			result = append(result, trimmed)
+		}
+	}
+	if len(result) == 0 {
+		return fallback
+	}
+	return result
 }
