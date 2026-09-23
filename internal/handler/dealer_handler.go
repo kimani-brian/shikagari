@@ -75,6 +75,23 @@ func (h *DealerHandler) GetMyProfile(c *gin.Context) {
 	response.OK(c, "Dealer profile retrieved", result)
 }
 
+// ListApproved godoc
+// @Summary      List approved dealers (public)
+// @Tags         dealers
+// @Param        page     query  int  false  "Page"
+// @Param        per_page query  int  false  "Per page"
+// @Success      200 {object}  response.APIResponse{data=[]dto.DealerProfileResponse}
+// @Router       /dealers [get]
+func (h *DealerHandler) ListApproved(c *gin.Context) {
+	page, perPage := getPagination(c)
+	results, total, err := h.dealerService.ListApproved(page, perPage)
+	if err != nil {
+		response.InternalServerError(c, err.Error())
+		return
+	}
+	response.Paginated(c, "Dealers retrieved", results, buildPaginationMeta(page, perPage, total))
+}
+
 // GetProfileByID godoc
 // @Summary      Get dealer profile by ID (public)
 // @Tags         dealers

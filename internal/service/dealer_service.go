@@ -160,6 +160,27 @@ func (s *DealerService) UpdateLogo(userID uuid.UUID, logoURL string) error {
 	return s.dealerRepo.UpdateLogoURL(profile.ID, logoURL)
 }
 
+// ── Public Operations ─────────────────────────────────────────────────────────
+
+// ListApproved returns paginated approved dealers for public directory.
+func (s *DealerService) ListApproved(page, perPage int) ([]dto.DealerProfileResponse, int64, error) {
+	if page < 1 {
+		page = 1
+	}
+	if perPage < 1 || perPage > 50 {
+		perPage = 20
+	}
+	profiles, total, err := s.dealerRepo.List(domain.ApprovalApproved, page, perPage)
+	if err != nil {
+		return nil, 0, errors.New("failed to retrieve dealers")
+	}
+	var result []dto.DealerProfileResponse
+	for _, p := range profiles {
+		result = append(result, dto.ToDealerProfileResponse(p))
+	}
+	return result, total, nil
+}
+
 // ── Admin Operations ──────────────────────────────────────────────────────────
 
 // AdminListProfiles returns a paginated list of dealer profiles.

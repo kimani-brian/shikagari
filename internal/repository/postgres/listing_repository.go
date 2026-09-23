@@ -102,6 +102,24 @@ func (r *listingRepository) Search(filters dto.ListingFilterRequest) ([]domain.L
 		query = query.Where("listings.year <= ?", filters.MaxYear)
 	}
 
+		if filters.UserID != "" {
+		if uid, err := uuid.Parse(filters.UserID); err == nil {
+			query = query.Where("listings.user_id = ?", uid)
+		}
+	}
+	if filters.DealerID != "" {
+		if did, err := uuid.Parse(filters.DealerID); err == nil {
+			// Resolve dealer profile → user_id then filter
+			var dealerUserID uuid.UUID
+			if err := r.db.Raw("SELECT user_id FROM dealer_profiles WHERE id = ? AND deleted_at IS NULL", did).Scan(&dealerUserID).Error; err == nil && dealerUserID != uuid.Nil {
+				query = query.Where("listings.user_id = ?", dealerUserID)
+			} else {
+				// Invalid dealer_id yields no results
+				query = query.Where("1 = 0")
+			}
+		}
+	}
+
 	// ── Full-text keyword search across title and description ─────────────────
 	if filters.Search != "" {
 		searchTerm := "%" + strings.ToLower(filters.Search) + "%"

@@ -36,8 +36,9 @@ func (s *PrivateSellerService) CreateProfile(
 	if err != nil || user == nil {
 		return nil, errors.New("user not found")
 	}
-	if user.Role != domain.RoleSeller && user.Role != domain.RoleAdmin {
-		return nil, errors.New("only users with the seller role can create a private seller profile")
+	hasAccess := user.Role == domain.RoleBuyer || user.Role == domain.RoleSeller || user.Role == domain.RoleAdmin
+	if !hasAccess {
+		return nil, errors.New("your account is not permitted to request private seller approval")
 	}
 
 	// ── 2. Prevent duplicate profiles ────────────────────────────────────────

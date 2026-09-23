@@ -5,6 +5,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/shikagari/api/config"
+	"github.com/shikagari/api/internal/domain"
 	"github.com/shikagari/api/internal/handler"
 	"github.com/shikagari/api/internal/middleware"
 	"github.com/shikagari/api/internal/repository/postgres"
@@ -182,13 +183,15 @@ func registerUserRoutes(rg *gin.RouterGroup, d *deps) {
 
 // registerDealerRoutes mounts dealer profile endpoints.
 //
+//	GET    /api/v1/dealers                    [public] list approved dealers
+//	GET    /api/v1/dealers/:id                [public]
 //	POST   /api/v1/dealers/profile            [auth + seller role]
 //	GET    /api/v1/dealers/profile            [auth required]
 //	PATCH  /api/v1/dealers/profile            [auth required]
 //	POST   /api/v1/dealers/profile/logo       [auth required]
-//	GET    /api/v1/dealers/:id                [public]
 func registerDealerRoutes(rg *gin.RouterGroup, d *deps) {
-	// Public: view a dealer's profile by ID
+	// Public: list approved dealers and view profiles
+	rg.GET("/dealers", d.dealerHandler.ListApproved)
 	rg.GET("/dealers/:id", d.dealerHandler.GetProfileByID)
 
 	// Authenticated: manage own dealer profile
@@ -215,7 +218,7 @@ func registerPrivateSellerRoutes(rg *gin.RouterGroup, d *deps) {
 	// Authenticated: manage own private seller profile
 	sellers := rg.Group("/sellers", d.authMW)
 	{
-		sellers.POST("/profile", middleware.RequireSeller(), d.privateSellerHandler.CreateProfile)
+		sellers.POST("/profile", middleware.RequireRole(domain.RoleBuyer, domain.RoleSeller, domain.RoleAdmin), d.privateSellerHandler.CreateProfile)
 		sellers.GET("/profile", d.privateSellerHandler.GetMyProfile)
 		sellers.PATCH("/profile", d.privateSellerHandler.UpdateProfile)
 		sellers.POST("/profile/photo", d.privateSellerHandler.UploadProfilePhoto)

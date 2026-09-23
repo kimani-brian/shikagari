@@ -59,6 +59,8 @@ type ListingFilterRequest struct {
 	FuelType     string  `form:"fuel_type"    binding:"omitempty,oneof=petrol diesel hybrid electric"`
 	Transmission string  `form:"transmission" binding:"omitempty,oneof=automatic manual"`
 	SellerType   string  `form:"seller_type"  binding:"omitempty,oneof=dealer private"`
+	DealerID     string  `form:"dealer_id"` // dealer profile UUID — filters to that dealer's inventory
+	UserID       string  `form:"user_id"`   // user UUID — filters to that user's listings
 	SortBy       string  `form:"sort_by"      binding:"omitempty,oneof=price_asc price_desc year_asc year_desc newest"`
 	Page         int     `form:"page,default=1"`
 	PerPage      int     `form:"per_page,default=20"`
