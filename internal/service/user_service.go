@@ -2,6 +2,7 @@ package service
 
 import (
 	"errors"
+	"strings"
 
 	"github.com/google/uuid"
 	"github.com/shikagari/api/internal/domain"
@@ -42,7 +43,8 @@ func (s *UserService) GetProfile(userID uuid.UUID) (*dto.UserResponse, error) {
 	return &res, nil
 }
 
-// UpdateProfile updates the authenticated user's full name and phone.
+// UpdateProfile updates the authenticated user's full name, phone, and email.
+// Email changes are checked for uniqueness; anything else is left untouched.
 func (s *UserService) UpdateProfile(userID uuid.UUID, req dto.UpdateProfileRequest) (*dto.UserResponse, error) {
 	user, err := s.userRepo.FindByID(userID)
 	if err != nil || user == nil {
@@ -54,6 +56,16 @@ func (s *UserService) UpdateProfile(userID uuid.UUID, req dto.UpdateProfileReque
 	}
 	if req.Phone != "" {
 		user.Phone = req.Phone
+	}
+	if req.Email != "" && !strings.EqualFold(req.Email, user.Email) {
+		taken, err := s.userRepo.ExistsByEmail(req.Email)
+		if err != nil {
+			return nil, errors.New("failed to validate email address")
+		}
+		if taken {
+			return nil, errors.New("this email address is already in use")
+		}
+		user.Email = req.Email
 	}
 
 	if err := s.userRepo.Update(user); err != nil {

@@ -32,6 +32,9 @@ func (s *PrivateSellerService) CreateProfile(
 	req dto.CreatePrivateSellerRequest,
 ) (*dto.PrivateSellerProfileResponse, error) {
 	// ── 1. Validate user role ─────────────────────────────────────────────────
+	// Buyers may also apply: this is the self-serve upgrade path (the buyer
+	// keeps the buyer role until an admin reviews the profile and flips the
+	// role to seller). Dealers use the dealer profile flow instead.
 	user, err := s.userRepo.FindByID(userID)
 	if err != nil || user == nil {
 		return nil, errors.New("user not found")
@@ -61,11 +64,13 @@ func (s *PrivateSellerService) CreateProfile(
 
 	// ── 4. Persist the profile ────────────────────────────────────────────────
 	profile := &domain.PrivateSellerProfile{
-		UserID:         userID,
-		NationalIDNo:   req.NationalIDNo,
-		Location:       req.Location,
-		Bio:            req.Bio,
-		ApprovalStatus: domain.ApprovalPending,
+		UserID:          userID,
+		NationalIDNo:    req.NationalIDNo,
+		Location:        req.Location,
+		Address:         req.Address,
+		ProfilePhotoURL: req.ProfilePhotoURL,
+		Bio:             req.Bio,
+		ApprovalStatus:  domain.ApprovalPending,
 	}
 
 	if err := s.sellerRepo.Create(profile); err != nil {
@@ -122,6 +127,12 @@ func (s *PrivateSellerService) UpdateProfile(
 
 	if req.Location != "" {
 		profile.Location = req.Location
+	}
+	if req.Address != "" {
+		profile.Address = req.Address
+	}
+	if req.ProfilePhotoURL != "" {
+		profile.ProfilePhotoURL = req.ProfilePhotoURL
 	}
 	if req.Bio != "" {
 		profile.Bio = req.Bio

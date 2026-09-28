@@ -9,9 +9,9 @@ type RegisterRequest struct {
 	Phone    string `json:"phone"     binding:"required,min=10,max=20"`
 	Password string `json:"password"  binding:"required,min=8,max=72"`
 	// Role is optional — defaults to "buyer" on the backend.
-	// Only "buyer" and "seller" are accepted at registration.
-	// "admin" is assigned manually by a superadmin.
-	Role string `json:"role"      binding:"omitempty,oneof=buyer seller"`
+	// Accepts "buyer" (buying), "seller" (private/individual seller),
+	// or "dealer" (business dealership). "admin" is assigned manually.
+	Role string `json:"role"      binding:"omitempty,oneof=buyer seller dealer"`
 }
 
 // LoginRequest is the payload for POST /auth/login

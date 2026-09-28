@@ -11,13 +11,15 @@ import (
 type UserRole string
 
 const (
-	RoleBuyer  UserRole = "buyer"
-	RoleSeller UserRole = "seller"
+	RoleBuyer  UserRole = "buyer"  // browsing, favorites, inquiries
+	RoleSeller UserRole = "seller" // private (individual) seller
+	RoleDealer UserRole = "dealer" // business dealership seller
 	RoleAdmin  UserRole = "admin"
 )
 
 // User represents a registered platform user.
-// Buyers can browse and inquire; sellers can list vehicles after profile approval.
+// Buyers can browse and inquire; sellers (private) and dealers can list
+// vehicles after their respective profile is approved.
 type User struct {
 	ID           uuid.UUID `gorm:"type:uuid;primaryKey;default:gen_random_uuid()" json:"id"`
 	FullName     string    `gorm:"type:varchar(150);not null"                    json:"full_name"`

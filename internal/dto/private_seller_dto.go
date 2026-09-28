@@ -11,15 +11,19 @@ import (
 
 // CreatePrivateSellerRequest is the payload for POST /sellers/profile
 type CreatePrivateSellerRequest struct {
-	NationalIDNo string `json:"national_id_no" binding:"required,min=6,max=20"`
-	Location     string `json:"location"       binding:"required,oneof=Nairobi Mombasa Kisumu Nakuru Eldoret Thika Malindi Nyeri Machakos Kisii Kericho Garissa Meru Kakamega Other"`
-	Bio          string `json:"bio"            binding:"omitempty,max=500"`
+	NationalIDNo    string `json:"national_id_no"    binding:"required,min=6,max=20"`
+	Location        string `json:"location"          binding:"required,kenyacounty"`
+	Address         string `json:"address"           binding:"omitempty,max=500"`
+	ProfilePhotoURL string `json:"profile_photo_url" binding:"omitempty,max=500"`
+	Bio             string `json:"bio"               binding:"omitempty,max=500"`
 }
 
 // UpdatePrivateSellerRequest is the payload for PATCH /sellers/profile
 type UpdatePrivateSellerRequest struct {
-	Location string `json:"location" binding:"omitempty,oneof=Nairobi Mombasa Kisumu Nakuru Eldoret Thika Malindi Nyeri Machakos Kisii Kericho Garissa Meru Kakamega Other"`
-	Bio      string `json:"bio"      binding:"omitempty,max=500"`
+	Location        string `json:"location"          binding:"omitempty,kenyacounty"`
+	Address         string `json:"address"           binding:"omitempty,max=500"`
+	ProfilePhotoURL string `json:"profile_photo_url" binding:"omitempty,max=500"`
+	Bio             string `json:"bio"               binding:"omitempty,max=500"`
 }
 
 // AdminReviewSellerRequest is the payload for PATCH /admin/sellers/:id/review
@@ -35,6 +39,7 @@ type PrivateSellerProfileResponse struct {
 	UserID          uuid.UUID             `json:"user_id"`
 	NationalIDNo    string                `json:"national_id_no"`
 	Location        string                `json:"location"`
+	Address         string                `json:"address"`
 	ProfilePhotoURL string                `json:"profile_photo_url"`
 	Bio             string                `json:"bio"`
 	ApprovalStatus  domain.ApprovalStatus `json:"approval_status"`
@@ -58,6 +63,7 @@ func ToPrivateSellerProfileResponse(p domain.PrivateSellerProfile) PrivateSeller
 		UserID:          p.UserID,
 		NationalIDNo:    p.NationalIDNo,
 		Location:        p.Location,
+		Address:         p.Address,
 		ProfilePhotoURL: p.ProfilePhotoURL,
 		Bio:             p.Bio,
 		ApprovalStatus:  p.ApprovalStatus,

@@ -202,7 +202,7 @@ Authorization: Bearer <your_token>
 {
   "user_id":    "uuid",
   "email":      "user@example.com",
-  "role":       "buyer | seller | admin",
+  "role":       "buyer | seller | dealer | admin",
   "is_verified": false,
   "exp":         1234567890
 }
@@ -215,7 +215,8 @@ Authorization: Bearer <your_token>
 | Role     | Capabilities                                                        |
 |----------|---------------------------------------------------------------------|
 | `buyer`  | Browse listings, send inquiries, manage favorites                   |
-| `seller` | Everything a buyer can do + create dealer or private seller profile |
+| `seller` | Private (individual) seller: everything a buyer can do + create a private seller profile, then list own cars after admin approval |
+| `dealer` | Business dealership: everything a buyer can do + create a dealer profile, then list inventory after admin approval |
 | `admin`  | Everything + approve/reject profiles, manage all users              |
 
 > **Note:** The `admin` role is assigned manually by a superadmin directly
@@ -225,11 +226,12 @@ Authorization: Bearer <your_token>
 
 ## Seller Approval Flow
 ```
-1. User registers with role: "seller"
-        │
-        ▼
-2. User creates a dealer profile  →  POST /dealers/profile
-   OR a private seller profile    →  POST /sellers/profile
+1. User registers with a role: "buyer" | "seller" (private) | "dealer"
+   (registration form: Buy card → buyer; Sell card → Dealer / Private-seller sub-cards)
+         │
+         ▼
+2. Seller creates a private seller profile  →  POST /sellers/profile
+   OR dealer creates a dealer profile       →  POST /dealers/profile
         │
         ▼
 3. Profile status = "pending"
@@ -252,10 +254,9 @@ Authorization: Bearer <your_token>
 ## Kenya-Specific Notes
 
 - All prices are stored and returned in **Kenyan Shillings (KES)**
-- Location values are validated against a fixed list of Kenyan cities:
-  `Nairobi`, `Mombasa`, `Kisumu`, `Nakuru`, `Eldoret`, `Thika`,
-  `Malindi`, `Nyeri`, `Machakos`, `Kisii`, `Kericho`, `Garissa`,
-  `Meru`, `Kakamega`, `Other`
+- Location values are validated against the 47 Kenyan counties
+  (see `KenyanCounties` in `internal/domain/location.go`).
+  Listing search filters still accept the original city list.
 - Database timezone is set to `Africa/Nairobi`
 - Mileage is stored in **kilometres**
 - API responses are designed to be lightweight for mobile and

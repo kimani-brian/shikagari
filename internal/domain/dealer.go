@@ -24,7 +24,7 @@ type DealerProfile struct {
 
 	// Business information
 	BusinessName  string `gorm:"type:varchar(200);not null"                     json:"business_name"`
-	BusinessRegNo string `gorm:"type:varchar(100);uniqueIndex"                  json:"business_reg_no"`
+	BusinessRegNo string `gorm:"type:varchar(100);index"                        json:"business_reg_no"`
 	Location      string `gorm:"type:varchar(100);not null"                     json:"location"`
 	Address       string `gorm:"type:text"                                      json:"address"`
 	LogoURL       string `gorm:"type:text"                                      json:"logo_url"`

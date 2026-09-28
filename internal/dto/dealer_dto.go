@@ -9,12 +9,14 @@ import (
 
 // ── Request DTOs ─────────────────────────────────────────────────────────────
 
-// CreateDealerProfileRequest is the payload for POST /dealers/profile
+// CreateDealerProfileRequest is the payload for POST /dealers/profile.
+// Only the location is mandatory; identity fields are optional extras.
 type CreateDealerProfileRequest struct {
-	BusinessName  string `json:"business_name"   binding:"required,min=2,max=200"`
+	BusinessName  string `json:"business_name"   binding:"omitempty,min=2,max=200"`
 	BusinessRegNo string `json:"business_reg_no" binding:"omitempty,max=100"`
-	Location      string `json:"location"        binding:"required,oneof=Nairobi Mombasa Kisumu Nakuru Eldoret Thika Malindi Nyeri Machakos Kisii Kericho Garissa Meru Kakamega Other"`
+	Location      string `json:"location"        binding:"required,kenyacounty"`
 	Address       string `json:"address"         binding:"omitempty,max=500"`
+	LogoURL       string `json:"logo_url"        binding:"omitempty,max=500"`
 	Description   string `json:"description"     binding:"omitempty,max=1000"`
 	KRAPIN        string `json:"kra_pin"         binding:"omitempty,max=20"`
 }
@@ -22,8 +24,9 @@ type CreateDealerProfileRequest struct {
 // UpdateDealerProfileRequest is the payload for PATCH /dealers/profile
 type UpdateDealerProfileRequest struct {
 	BusinessName string `json:"business_name" binding:"omitempty,min=2,max=200"`
-	Location     string `json:"location"      binding:"omitempty,oneof=Nairobi Mombasa Kisumu Nakuru Eldoret Thika Malindi Nyeri Machakos Kisii Kericho Garissa Meru Kakamega Other"`
+	Location     string `json:"location"      binding:"omitempty,kenyacounty"`
 	Address      string `json:"address"       binding:"omitempty,max=500"`
+	LogoURL      string `json:"logo_url"      binding:"omitempty,max=500"`
 	Description  string `json:"description"   binding:"omitempty,max=1000"`
 	KRAPIN       string `json:"kra_pin"       binding:"omitempty,max=20"`
 }

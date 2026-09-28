@@ -70,6 +70,8 @@ func (s *AuthService) Register(req dto.RegisterRequest, meta dto.SessionMetadata
 	role := domain.RoleBuyer
 	if req.Role == string(domain.RoleSeller) {
 		role = domain.RoleSeller
+	} else if req.Role == string(domain.RoleDealer) {
+		role = domain.RoleDealer
 	}
 
 	// ── 4. Persist the new user ───────────────────────────────────────────────

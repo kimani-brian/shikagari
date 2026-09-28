@@ -32,13 +32,13 @@ func (s *DealerService) CreateProfile(
 	userID uuid.UUID,
 	req dto.CreateDealerProfileRequest,
 ) (*dto.DealerProfileResponse, error) {
-	// ── 1. Ensure user exists and has seller role ─────────────────────────────
+	// ── 1. Ensure user exists and has dealer role ─────────────────────────────
 	user, err := s.userRepo.FindByID(userID)
 	if err != nil || user == nil {
 		return nil, errors.New("user not found")
 	}
-	if user.Role != domain.RoleSeller && user.Role != domain.RoleAdmin {
-		return nil, errors.New("only users with the seller role can create a dealer profile")
+	if user.Role != domain.RoleDealer && user.Role != domain.RoleAdmin {
+		return nil, errors.New("only users with the dealer role can create a dealer profile")
 	}
 
 	// ── 2. Prevent duplicate profiles ────────────────────────────────────────
@@ -68,6 +68,7 @@ func (s *DealerService) CreateProfile(
 		BusinessRegNo:  req.BusinessRegNo,
 		Location:       req.Location,
 		Address:        req.Address,
+		LogoURL:        req.LogoURL,
 		Description:    req.Description,
 		KRAPIN:         req.KRAPIN,
 		ApprovalStatus: domain.ApprovalPending,
@@ -135,6 +136,9 @@ func (s *DealerService) UpdateProfile(
 	}
 	if req.Address != "" {
 		profile.Address = req.Address
+	}
+	if req.LogoURL != "" {
+		profile.LogoURL = req.LogoURL
 	}
 	if req.Description != "" {
 		profile.Description = req.Description

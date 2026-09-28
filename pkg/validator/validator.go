@@ -5,12 +5,20 @@ import (
 	"strings"
 
 	"github.com/go-playground/validator/v10"
+	"github.com/shikagari/api/internal/domain"
 )
 
 var validate *validator.Validate
 
 func init() {
 	validate = validator.New()
+
+	// kenyacounty validates that a location is one of Kenya's 47 counties.
+	// Registered here because county names contain spaces, which the
+	// built-in `oneof` rule cannot express.
+	_ = validate.RegisterValidation("kenyacounty", func(fl validator.FieldLevel) bool {
+		return domain.IsKenyanCounty(fl.Field().String())
+	})
 }
 
 // Validate validates a struct against its binding tags.
@@ -46,6 +54,8 @@ func formatError(e validator.FieldError) string {
 		return fmt.Sprintf("must be less than or equal to %s", e.Param())
 	case "oneof":
 		return fmt.Sprintf("must be one of: %s", strings.ReplaceAll(e.Param(), " ", ", "))
+	case "kenyacounty":
+		return "must be a valid Kenyan county"
 	case "url":
 		return "must be a valid URL"
 	default:

@@ -13,6 +13,7 @@ import (
 type UpdateProfileRequest struct {
 	FullName string `json:"full_name" binding:"omitempty,min=2,max=150"`
 	Phone    string `json:"phone"     binding:"omitempty,min=10,max=20"`
+	Email    string `json:"email"     binding:"omitempty,email,max=255"`
 }
 
 // ChangePasswordRequest is the payload for PATCH /users/me/password
@@ -24,7 +25,7 @@ type ChangePasswordRequest struct {
 // AdminUpdateUserRequest allows an admin to toggle roles or verified status.
 // Used for PATCH /admin/users/:id
 type AdminUpdateUserRequest struct {
-	Role       *string `json:"role"        binding:"omitempty,oneof=buyer seller admin"`
+	Role       *string `json:"role"        binding:"omitempty,oneof=buyer seller dealer admin"`
 	IsVerified *bool   `json:"is_verified" binding:"omitempty"`
 	IsActive   *bool   `json:"is_active"   binding:"omitempty"`
 }

@@ -16,6 +16,7 @@ type PrivateSellerProfile struct {
 	// Personal details for identity verification
 	NationalIDNo    string `gorm:"type:varchar(20);not null;uniqueIndex"          json:"national_id_no"`
 	Location        string `gorm:"type:varchar(100);not null"                     json:"location"`
+	Address         string `gorm:"type:text"                                      json:"address"`
 	ProfilePhotoURL string `gorm:"type:text"                                      json:"profile_photo_url"`
 	Bio             string `gorm:"type:text"                                      json:"bio"`
 

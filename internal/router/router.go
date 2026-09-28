@@ -4,6 +4,8 @@ import (
 	"net/http"
 
 	"github.com/gin-gonic/gin"
+	"github.com/gin-gonic/gin/binding"
+	"github.com/go-playground/validator/v10"
 	"github.com/shikagari/api/config"
 	"github.com/shikagari/api/internal/domain"
 	"github.com/shikagari/api/internal/handler"
@@ -25,6 +27,12 @@ func Setup(cfg *config.Config, db *gorm.DB) *gin.Engine {
 	}
 
 	r := gin.New() // Use gin.New() — we register our own logger
+
+	// ── 1b. Custom validation rules ─────────────────────────────────────────────
+	// Gin binds `binding:"..."` tags with its own validator instance, so custom
+	// rules must be registered on Gin's engine (registering only in
+	// pkg/validator is not enough and panics at request time).
+	registerCustomValidations()
 
 	// ── 2. Global middleware ──────────────────────────────────────────────────
 	r.Use(middleware.Logger())
@@ -65,6 +73,18 @@ func Setup(cfg *config.Config, db *gorm.DB) *gin.Engine {
 	})
 
 	return r
+}
+
+// registerCustomValidations registers custom struct-tag rules on Gin's
+// validator engine. County names contain spaces, which the built-in `oneof`
+// rule cannot express, hence the `kenyacounty` rule backed by
+// domain.KenyanCounties.
+func registerCustomValidations() {
+	if v, ok := binding.Validator.Engine().(*validator.Validate); ok {
+		_ = v.RegisterValidation("kenyacounty", func(fl validator.FieldLevel) bool {
+			return domain.IsKenyanCounty(fl.Field().String())
+		})
+	}
 }
 
 // ── Dependency Container ──────────────────────────────────────────────────────
@@ -185,7 +205,7 @@ func registerUserRoutes(rg *gin.RouterGroup, d *deps) {
 //
 //	GET    /api/v1/dealers                    [public] list approved dealers
 //	GET    /api/v1/dealers/:id                [public]
-//	POST   /api/v1/dealers/profile            [auth + seller role]
+//	POST   /api/v1/dealers/profile            [auth + dealer role]
 //	GET    /api/v1/dealers/profile            [auth required]
 //	PATCH  /api/v1/dealers/profile            [auth required]
 //	POST   /api/v1/dealers/profile/logo       [auth required]
@@ -197,7 +217,7 @@ func registerDealerRoutes(rg *gin.RouterGroup, d *deps) {
 	// Authenticated: manage own dealer profile
 	dealers := rg.Group("/dealers", d.authMW)
 	{
-		dealers.POST("/profile", middleware.RequireSeller(), d.dealerHandler.CreateProfile)
+		dealers.POST("/profile", middleware.RequireDealer(), d.dealerHandler.CreateProfile)
 		dealers.GET("/profile", d.dealerHandler.GetMyProfile)
 		dealers.PATCH("/profile", d.dealerHandler.UpdateProfile)
 		dealers.POST("/profile/logo", d.dealerHandler.UploadLogo)
@@ -230,7 +250,7 @@ func registerPrivateSellerRoutes(rg *gin.RouterGroup, d *deps) {
 //	GET    /api/v1/listings                   [public]
 //	GET    /api/v1/listings/me                [auth required]
 //	GET    /api/v1/listings/:id               [public]
-//	POST   /api/v1/listings                   [auth + seller role]
+//	POST   /api/v1/listings                   [auth + seller or dealer role]
 //	PATCH  /api/v1/listings/:id               [auth required — owner or admin]
 //	DELETE /api/v1/listings/:id               [auth required — owner or admin]
 //	POST   /api/v1/listings/:id/images        [auth required — owner only]
@@ -243,8 +263,9 @@ func registerListingRoutes(rg *gin.RouterGroup, d *deps, inquiryH *handler.Inqui
 	// Authenticated listing management
 	listings := rg.Group("/listings", d.authMW)
 	{
-		// Seller-only: create a listing
-		listings.POST("", middleware.RequireSeller(), d.listingHandler.Create)
+		// Seller or dealer: create a listing (service resolves seller type
+		// from the user's approved dealer / private seller profile)
+		listings.POST("", middleware.RequireSellerOrDealer(), d.listingHandler.Create)
 
 		// Owner or admin: edit and delete
 		listings.PATCH("/:id", d.listingHandler.Update)
