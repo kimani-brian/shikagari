@@ -84,6 +84,9 @@ func registerCustomValidations() {
 		_ = v.RegisterValidation("kenyacounty", func(fl validator.FieldLevel) bool {
 			return domain.IsKenyanCounty(fl.Field().String())
 		})
+		_ = v.RegisterValidation("vehicleyear", func(fl validator.FieldLevel) bool {
+			return domain.IsValidVehicleYear(int(fl.Field().Int()))
+		})
 	}
 }
 

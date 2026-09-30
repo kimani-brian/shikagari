@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/lib/pq"
 	"github.com/shikagari/api/internal/domain"
 	"github.com/shikagari/api/internal/dto"
 	"gorm.io/gorm"
@@ -72,7 +73,12 @@ func (r *listingRepository) Search(filters dto.ListingFilterRequest) ([]domain.L
 		query = query.Where("LOWER(listings.location) = LOWER(?)", filters.Location)
 	}
 	if filters.BodyType != "" {
-		query = query.Where("listings.body_type = ?", filters.BodyType)
+		if bodyTypes := domain.ParseBodyTypes(filters.BodyType); len(bodyTypes) > 0 {
+			query = query.Where("listings.body_type IN ?", bodyTypes)
+		} else {
+			// No recognised style yields no results
+			query = query.Where("1 = 0")
+		}
 	}
 	if filters.Make != "" {
 		query = query.Where("LOWER(listings.make) = LOWER(?)", filters.Make)
@@ -85,6 +91,12 @@ func (r *listingRepository) Search(filters dto.ListingFilterRequest) ([]domain.L
 	}
 	if filters.Transmission != "" {
 		query = query.Where("listings.transmission = ?", filters.Transmission)
+	}
+	if filters.Drivetrain != "" {
+		query = query.Where("listings.drivetrain = ?", filters.Drivetrain)
+	}
+	if filters.Doors > 0 {
+		query = query.Where("listings.doors = ?", filters.Doors)
 	}
 	if filters.SellerType != "" {
 		query = query.Where("listings.seller_type = ?", filters.SellerType)
@@ -109,10 +121,14 @@ func (r *listingRepository) Search(filters dto.ListingFilterRequest) ([]domain.L
 	}
 	if filters.DealerID != "" {
 		if did, err := uuid.Parse(filters.DealerID); err == nil {
-			// Resolve dealer profile → user_id then filter
-			var dealerUserID uuid.UUID
-			if err := r.db.Raw("SELECT user_id FROM dealer_profiles WHERE id = ? AND deleted_at IS NULL", did).Scan(&dealerUserID).Error; err == nil && dealerUserID != uuid.Nil {
-				query = query.Where("listings.user_id = ?", dealerUserID)
+			// Resolve dealer profile → user_id then filter.
+			// NOTE: load via the model, not Raw().Scan() into a UUID —
+			// the pgx driver returns UUIDs as [16]byte which database/sql
+			// cannot assign to google uuid.UUID, silently failing the scan
+			// and (previously) yielding zero results for every dealer.
+			var profile domain.DealerProfile
+			if err := r.db.Where("id = ?", did).First(&profile).Error; err == nil {
+				query = query.Where("listings.user_id = ?", profile.UserID)
 			} else {
 				// Invalid dealer_id yields no results
 				query = query.Where("1 = 0")
@@ -176,10 +192,13 @@ func (r *listingRepository) FindByUserID(
 }
 
 func (r *listingRepository) UpdateImages(id uuid.UUID, images []string) error {
+	// pq.Array is required here: a plain []string in a map update bypasses
+	// the pq.StringArray serializer on the struct field and Postgres rejects
+	// it as a malformed array literal.
 	return r.db.Model(&domain.Listing{}).
 		Where("id = ?", id).
 		Updates(map[string]interface{}{
-			"images":     images,
+			"images":     pq.Array(images),
 			"updated_at": time.Now(),
 		}).Error
 }

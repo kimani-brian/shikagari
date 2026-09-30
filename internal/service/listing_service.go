@@ -57,9 +57,14 @@ func (s *ListingService) Create(
 		Mileage:      req.Mileage,
 		FuelType:     domain.FuelType(req.FuelType),
 		Transmission: domain.Transmission(req.Transmission),
+		Drivetrain:   req.Drivetrain,
+		EngineSize:   req.EngineSize,
 		Color:        req.Color,
 		Status:       domain.ListingActive,
 		Images:       []string{},
+	}
+	if req.Doors != nil {
+		listing.Doors = *req.Doors
 	}
 
 	if err := s.listingRepo.Create(listing); err != nil {
@@ -193,6 +198,15 @@ func (s *ListingService) Update(
 	}
 	if req.Transmission != nil {
 		listing.Transmission = domain.Transmission(*req.Transmission)
+	}
+	if req.Drivetrain != nil {
+		listing.Drivetrain = *req.Drivetrain
+	}
+	if req.EngineSize != nil {
+		listing.EngineSize = *req.EngineSize
+	}
+	if req.Doors != nil {
+		listing.Doors = *req.Doors
 	}
 	if req.Color != nil {
 		listing.Color = *req.Color

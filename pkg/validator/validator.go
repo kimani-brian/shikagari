@@ -19,6 +19,12 @@ func init() {
 	_ = validate.RegisterValidation("kenyacounty", func(fl validator.FieldLevel) bool {
 		return domain.IsKenyanCounty(fl.Field().String())
 	})
+
+	// vehicleyear validates a model year between 1980 and next year.
+	// A static `lte` tag would silently start rejecting new cars every January.
+	_ = validate.RegisterValidation("vehicleyear", func(fl validator.FieldLevel) bool {
+		return domain.IsValidVehicleYear(int(fl.Field().Int()))
+	})
 }
 
 // Validate validates a struct against its binding tags.
@@ -56,6 +62,8 @@ func formatError(e validator.FieldError) string {
 		return fmt.Sprintf("must be one of: %s", strings.ReplaceAll(e.Param(), " ", ", "))
 	case "kenyacounty":
 		return "must be a valid Kenyan county"
+	case "vehicleyear":
+		return "must be a valid model year"
 	case "url":
 		return "must be a valid URL"
 	default:

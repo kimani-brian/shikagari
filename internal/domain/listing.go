@@ -1,6 +1,7 @@
 package domain
 
 import (
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -57,6 +58,41 @@ const (
 	SellerTypePrivate SellerType = "private"
 )
 
+// IsValidVehicleYear reports whether a model year is plausible:
+// between 1980 and next calendar year.
+func IsValidVehicleYear(year int) bool {
+	now := time.Now().Year()
+	return year >= 1980 && year <= now+1
+}
+
+// ValidBodyTypes is the allowlist for vehicle body styles.
+var ValidBodyTypes = []string{
+	string(BodyTypeSUV),
+	string(BodyTypeSedan),
+	string(BodyTypeHatchback),
+	string(BodyTypePickup),
+	string(BodyTypeCoupe),
+	string(BodyTypeEV),
+	string(BodyTypeVan),
+	string(BodyTypeWagon),
+}
+
+// ParseBodyTypes splits a comma-separated body_type filter (e.g. "Van,SUV")
+// and returns only recognised values, so links can cover several styles.
+func ParseBodyTypes(raw string) []string {
+	var out []string
+	for _, part := range strings.Split(raw, ",") {
+		part = strings.TrimSpace(part)
+		for _, valid := range ValidBodyTypes {
+			if part == valid {
+				out = append(out, part)
+				break
+			}
+		}
+	}
+	return out
+}
+
 // Listing represents a vehicle listed for sale on ShikaGari.
 // Prices are stored in Kenya Shillings (KES).
 type Listing struct {
@@ -79,6 +115,9 @@ type Listing struct {
 	Mileage      int          `gorm:"not null"                                       json:"mileage"` // in kilometres
 	FuelType     FuelType     `gorm:"type:varchar(20);not null"                      json:"fuel_type"`
 	Transmission Transmission `gorm:"type:varchar(20);not null"                      json:"transmission"`
+	Drivetrain   string       `gorm:"type:varchar(10)"                               json:"drivetrain"` // 2WD, 4WD, AWD (optional)
+	EngineSize   string       `gorm:"type:varchar(20)"                               json:"engine_size"` // e.g. 3.0L (optional)
+	Doors        int          `gorm:"default:0"                                      json:"doors"`       // 0 = not specified
 	Color        string       `gorm:"type:varchar(50)"                               json:"color"`
 
 	// Images stored as a PostgreSQL text array (URLs to uploaded images)

@@ -14,14 +14,17 @@ type CreateListingRequest struct {
 	Title        string  `json:"title"        binding:"required,min=5,max=255"`
 	Description  string  `json:"description"  binding:"omitempty,max=5000"`
 	PriceKES     float64 `json:"price_kes"    binding:"required,gte=0"`
-	Location     string  `json:"location"     binding:"required,oneof=Nairobi Mombasa Kisumu Nakuru Eldoret Thika Malindi Nyeri Machakos Kisii Kericho Garissa Meru Kakamega Other"`
+	Location     string  `json:"location"     binding:"required,kenyacounty"`
 	BodyType     string  `json:"body_type"    binding:"required,oneof=SUV Sedan Hatchback Pickup Coupe EV Van Wagon"`
 	Make         string  `json:"make"         binding:"required,min=1,max=100"`
 	Model        string  `json:"model"        binding:"required,min=1,max=100"`
-	Year         int     `json:"year"         binding:"required,gte=1980,lte=2025"`
+	Year         int     `json:"year"         binding:"required,vehicleyear"`
 	Mileage      int     `json:"mileage"      binding:"required,gte=0"`
 	FuelType     string  `json:"fuel_type"    binding:"required,oneof=petrol diesel hybrid electric"`
 	Transmission string  `json:"transmission" binding:"required,oneof=automatic manual"`
+	Drivetrain   string  `json:"drivetrain"   binding:"omitempty,oneof=2WD 4WD AWD"`
+	EngineSize   string  `json:"engine_size"  binding:"omitempty,max=20"`
+	Doors        *int    `json:"doors"        binding:"omitempty,gte=2,lte=6"`
 	Color        string  `json:"color"        binding:"omitempty,max=50"`
 	// Images are uploaded separately via POST /listings/:id/images
 	// and are not part of the initial create payload.
@@ -33,23 +36,27 @@ type UpdateListingRequest struct {
 	Title        *string  `json:"title"        binding:"omitempty,min=5,max=255"`
 	Description  *string  `json:"description"  binding:"omitempty,max=5000"`
 	PriceKES     *float64 `json:"price_kes"    binding:"omitempty,gte=0"`
-	Location     *string  `json:"location"     binding:"omitempty,oneof=Nairobi Mombasa Kisumu Nakuru Eldoret Thika Malindi Nyeri Machakos Kisii Kericho Garissa Meru Kakamega Other"`
+	Location     *string  `json:"location"     binding:"omitempty,kenyacounty"`
 	BodyType     *string  `json:"body_type"    binding:"omitempty,oneof=SUV Sedan Hatchback Pickup Coupe EV Van Wagon"`
 	Make         *string  `json:"make"         binding:"omitempty,min=1,max=100"`
 	Model        *string  `json:"model"        binding:"omitempty,min=1,max=100"`
-	Year         *int     `json:"year"         binding:"omitempty,gte=1980,lte=2025"`
+	Year         *int     `json:"year"         binding:"omitempty,vehicleyear"`
 	Mileage      *int     `json:"mileage"      binding:"omitempty,gte=0"`
 	FuelType     *string  `json:"fuel_type"    binding:"omitempty,oneof=petrol diesel hybrid electric"`
 	Transmission *string  `json:"transmission" binding:"omitempty,oneof=automatic manual"`
+	Drivetrain   *string  `json:"drivetrain"   binding:"omitempty,oneof=2WD 4WD AWD"`
+	EngineSize   *string  `json:"engine_size"  binding:"omitempty,max=20"`
+	Doors        *int     `json:"doors"        binding:"omitempty,gte=2,lte=6"`
 	Color        *string  `json:"color"        binding:"omitempty,max=50"`
 	Status       *string  `json:"status"       binding:"omitempty,oneof=active inactive sold"`
 }
 
-// ListingFilterRequest maps query parameters for GET /listings
+// ListingFilterRequest maps query parameters for GET /listings.
+// body_type accepts a single style or a comma-separated list (e.g. "Van,SUV").
 type ListingFilterRequest struct {
 	Search       string  `form:"search"`
 	Location     string  `form:"location"`
-	BodyType     string  `form:"body_type"      binding:"omitempty,oneof=SUV Sedan Hatchback Pickup Coupe EV Van Wagon"`
+	BodyType     string  `form:"body_type"`
 	Make         string  `form:"make"`
 	Model        string  `form:"model"`
 	MinYear      int     `form:"min_year"`
@@ -58,6 +65,8 @@ type ListingFilterRequest struct {
 	MaxPriceKES  float64 `form:"max_price"`
 	FuelType     string  `form:"fuel_type"    binding:"omitempty,oneof=petrol diesel hybrid electric"`
 	Transmission string  `form:"transmission" binding:"omitempty,oneof=automatic manual"`
+	Drivetrain   string  `form:"drivetrain"   binding:"omitempty,oneof=2WD 4WD AWD"`
+	Doors        int     `form:"doors"`
 	SellerType   string  `form:"seller_type"  binding:"omitempty,oneof=dealer private"`
 	DealerID     string  `form:"dealer_id"` // dealer profile UUID — filters to that dealer's inventory
 	UserID       string  `form:"user_id"`   // user UUID — filters to that user's listings
@@ -84,6 +93,9 @@ type ListingResponse struct {
 	Mileage      int                  `json:"mileage"`
 	FuelType     domain.FuelType      `json:"fuel_type"`
 	Transmission domain.Transmission  `json:"transmission"`
+	Drivetrain   string               `json:"drivetrain"`
+	EngineSize   string               `json:"engine_size"`
+	Doors        int                  `json:"doors"`
 	Color        string               `json:"color"`
 	Images       []string             `json:"images"`
 	ViewCount    int                  `json:"view_count"`
@@ -113,6 +125,10 @@ type ListingCardResponse struct {
 	Mileage      int                  `json:"mileage"`
 	FuelType     domain.FuelType      `json:"fuel_type"`
 	Transmission domain.Transmission  `json:"transmission"`
+	Drivetrain   string               `json:"drivetrain"`
+	EngineSize   string               `json:"engine_size"`
+	Doors        int                  `json:"doors"`
+	Color        string               `json:"color"`
 	ThumbnailURL string               `json:"thumbnail_url"` // first image only
 	ViewCount    int                  `json:"view_count"`
 	SellerType   domain.SellerType    `json:"seller_type"`
@@ -142,6 +158,9 @@ func ToListingResponse(l domain.Listing) ListingResponse {
 		Mileage:      l.Mileage,
 		FuelType:     l.FuelType,
 		Transmission: l.Transmission,
+		Drivetrain:   l.Drivetrain,
+		EngineSize:   l.EngineSize,
+		Doors:        l.Doors,
 		Color:        l.Color,
 		Images:       images,
 		ViewCount:    l.ViewCount,
@@ -183,6 +202,10 @@ func ToListingCardResponse(l domain.Listing) ListingCardResponse {
 		Mileage:      l.Mileage,
 		FuelType:     l.FuelType,
 		Transmission: l.Transmission,
+		Drivetrain:   l.Drivetrain,
+		EngineSize:   l.EngineSize,
+		Doors:        l.Doors,
+		Color:        l.Color,
 		ThumbnailURL: thumbnail,
 		ViewCount:    l.ViewCount,
 		SellerType:   l.SellerType,
