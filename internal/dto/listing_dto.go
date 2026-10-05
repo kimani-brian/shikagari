@@ -158,7 +158,8 @@ type ListingCardResponse struct {
 	ThumbnailURL string               `json:"thumbnail_url"` // first image only
 	ViewCount    int                  `json:"view_count"`
 	SellerType   domain.SellerType    `json:"seller_type"`
-	IsVerified   bool                 `json:"is_verified"` // seller verified badge
+	IsVerified   bool                 `json:"is_verified"`  // seller verified badge
+	SellerLabel  string               `json:"seller_label"` // dealership name, or "Private listing"
 
 	// Buyer review state — lets a seller see why their listing is not live yet
 	VerificationStatus domain.VerificationStatus `json:"verification_status"`
@@ -214,6 +215,16 @@ func ToListingResponse(l domain.Listing) ListingResponse {
 	}
 
 	return res
+}
+
+// SellerLabel is the byline shown on a listing card: the dealership name when
+// the seller has a dealer profile, otherwise "Private listing" for individuals
+// who list from their own account.
+func SellerLabel(l domain.Listing) string {
+	if l.User.DealerProfile != nil && l.User.DealerProfile.BusinessName != "" {
+		return l.User.DealerProfile.BusinessName
+	}
+	return "Private listing"
 }
 
 // CoverThumbnail picks the photo that represents a listing on cards and in
@@ -275,6 +286,7 @@ func ToListingCardResponse(l domain.Listing) ListingCardResponse {
 		ViewCount:    l.ViewCount,
 		SellerType:   l.SellerType,
 		IsVerified:   l.User.IsVerified,
+		SellerLabel:  SellerLabel(l),
 
 		VerificationStatus: l.VerificationStatus,
 		RejectionReason:    l.RejectionReason,

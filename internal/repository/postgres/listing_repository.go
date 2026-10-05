@@ -181,6 +181,7 @@ func (r *listingRepository) FindByUserID(
 
 	err := query.
 		Preload("User").
+		Preload("User.DealerProfile").
 		Order("created_at DESC").
 		Limit(perPage).
 		Offset(offset).
@@ -221,6 +222,7 @@ func (r *listingRepository) FindByVerificationStatus(
 
 	err := query.
 		Preload("User").
+		Preload("User.DealerProfile").
 		Order("created_at DESC").
 		Limit(perPage).
 		Offset(offset).
