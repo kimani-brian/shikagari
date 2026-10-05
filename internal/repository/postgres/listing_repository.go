@@ -31,7 +31,6 @@ func (r *listingRepository) FindByID(id uuid.UUID) (*domain.Listing, error) {
 	err := r.db.
 		Preload("User").
 		Preload("User.DealerProfile").
-		Preload("User.PrivateSellerProfile").
 		First(&listing, "listings.id = ? AND listings.deleted_at IS NULL", id).Error
 
 	if err != nil {
@@ -114,7 +113,7 @@ func (r *listingRepository) Search(filters dto.ListingFilterRequest) ([]domain.L
 		query = query.Where("listings.year <= ?", filters.MaxYear)
 	}
 
-		if filters.UserID != "" {
+	if filters.UserID != "" {
 		if uid, err := uuid.Parse(filters.UserID); err == nil {
 			query = query.Where("listings.user_id = ?", uid)
 		}
@@ -156,7 +155,6 @@ func (r *listingRepository) Search(filters dto.ListingFilterRequest) ([]domain.L
 	err := query.
 		Preload("User").
 		Preload("User.DealerProfile").
-		Preload("User.PrivateSellerProfile").
 		Order(orderClause).
 		Limit(filters.PerPage).
 		Offset(offset).
@@ -201,6 +199,34 @@ func (r *listingRepository) UpdateImages(id uuid.UUID, images []string) error {
 			"images":     pq.Array(images),
 			"updated_at": time.Now(),
 		}).Error
+}
+
+// FindByVerificationStatus returns listings awaiting admin review,
+// newest first. Used by the admin review queue.
+func (r *listingRepository) FindByVerificationStatus(
+	status domain.VerificationStatus,
+	page, perPage int,
+) ([]domain.Listing, int64, error) {
+	var listings []domain.Listing
+	var total int64
+
+	offset := (page - 1) * perPage
+
+	query := r.db.Model(&domain.Listing{}).
+		Where("verification_status = ? AND deleted_at IS NULL", status)
+
+	if err := query.Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+
+	err := query.
+		Preload("User").
+		Order("created_at DESC").
+		Limit(perPage).
+		Offset(offset).
+		Find(&listings).Error
+
+	return listings, total, err
 }
 
 func (r *listingRepository) IncrementViewCount(id uuid.UUID) error {

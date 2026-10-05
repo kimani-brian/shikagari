@@ -12,7 +12,7 @@ import (
 //
 // Usage:
 //
-//	router.POST("/listings", middleware.RequireRole(domain.RoleSeller, domain.RoleAdmin), handler)
+//	router.PATCH("/listings/:id", middleware.RequireRole(domain.RoleDealer, domain.RoleAdmin), handler)
 func RequireRole(allowedRoles ...domain.UserRole) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		claims := GetCurrentUser(c)
@@ -39,23 +39,9 @@ func RequireAdmin() gin.HandlerFunc {
 	return RequireRole(domain.RoleAdmin)
 }
 
-// RequireSeller allows access to private (individual) sellers and admins.
-// Dealer-only and listing-creation routes use RequireDealer /
-// RequireSellerOrDealer below.
-func RequireSeller() gin.HandlerFunc {
-	return RequireRole(domain.RoleSeller, domain.RoleAdmin)
-}
-
 // RequireDealer allows access to business dealership accounts and admins.
 func RequireDealer() gin.HandlerFunc {
 	return RequireRole(domain.RoleDealer, domain.RoleAdmin)
-}
-
-// RequireSellerOrDealer allows access to any selling account — private
-// seller, dealer — and admins. Use for listing creation, which resolves
-// the concrete seller type from the user's approved profile.
-func RequireSellerOrDealer() gin.HandlerFunc {
-	return RequireRole(domain.RoleSeller, domain.RoleDealer, domain.RoleAdmin)
 }
 
 // RequireVerified ensures only users with the verified badge can proceed.

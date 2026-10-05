@@ -56,7 +56,6 @@ func runMigrations(db *gorm.DB) {
 	err := db.AutoMigrate(
 		&domain.User{},
 		&domain.DealerProfile{},
-		&domain.PrivateSellerProfile{},
 		&domain.Listing{},
 		&domain.Favorite{},
 		&domain.Inquiry{},

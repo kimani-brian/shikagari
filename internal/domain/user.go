@@ -11,8 +11,7 @@ import (
 type UserRole string
 
 const (
-	RoleBuyer  UserRole = "buyer"  // browsing, favorites, inquiries
-	RoleSeller UserRole = "seller" // private (individual) seller
+	RoleBuyer  UserRole = "buyer"  // browsing, favorites, inquiries — and can list once verified
 	RoleDealer UserRole = "dealer" // business dealership seller
 	RoleAdmin  UserRole = "admin"
 )
@@ -40,9 +39,8 @@ type User struct {
 	DeletedAt gorm.DeletedAt `gorm:"index"                                          json:"-"`
 
 	// Associations
-	DealerProfile        *DealerProfile        `gorm:"foreignKey:UserID"  json:"dealer_profile,omitempty"`
-	PrivateSellerProfile *PrivateSellerProfile `gorm:"foreignKey:UserID" json:"private_seller_profile,omitempty"`
-	Listings             []Listing             `gorm:"foreignKey:UserID"  json:"-"`
-	Favorites            []Favorite            `gorm:"foreignKey:UserID"  json:"-"`
-	Inquiries            []Inquiry             `gorm:"foreignKey:BuyerID" json:"-"`
+	DealerProfile *DealerProfile `gorm:"foreignKey:UserID"  json:"dealer_profile,omitempty"`
+	Listings      []Listing      `gorm:"foreignKey:UserID"  json:"-"`
+	Favorites     []Favorite     `gorm:"foreignKey:UserID"  json:"-"`
+	Inquiries     []Inquiry      `gorm:"foreignKey:BuyerID" json:"-"`
 }

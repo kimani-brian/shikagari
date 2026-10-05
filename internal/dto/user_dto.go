@@ -25,7 +25,7 @@ type ChangePasswordRequest struct {
 // AdminUpdateUserRequest allows an admin to toggle roles or verified status.
 // Used for PATCH /admin/users/:id
 type AdminUpdateUserRequest struct {
-	Role       *string `json:"role"        binding:"omitempty,oneof=buyer seller dealer admin"`
+	Role       *string `json:"role"        binding:"omitempty,oneof=buyer dealer admin"`
 	IsVerified *bool   `json:"is_verified" binding:"omitempty"`
 	IsActive   *bool   `json:"is_active"   binding:"omitempty"`
 }

@@ -68,9 +68,7 @@ func (s *AuthService) Register(req dto.RegisterRequest, meta dto.SessionMetadata
 
 	// ── 3. Determine role (defaults to buyer) ─────────────────────────────────
 	role := domain.RoleBuyer
-	if req.Role == string(domain.RoleSeller) {
-		role = domain.RoleSeller
-	} else if req.Role == string(domain.RoleDealer) {
+	if req.Role == string(domain.RoleDealer) {
 		role = domain.RoleDealer
 	}
 

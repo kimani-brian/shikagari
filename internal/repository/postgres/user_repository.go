@@ -26,7 +26,6 @@ func (r *userRepository) FindByID(id uuid.UUID) (*domain.User, error) {
 	var user domain.User
 	err := r.db.
 		Preload("DealerProfile").
-		Preload("PrivateSellerProfile").
 		First(&user, "id = ?", id).Error
 
 	if err != nil {
@@ -42,7 +41,6 @@ func (r *userRepository) FindByEmail(email string) (*domain.User, error) {
 	var user domain.User
 	err := r.db.
 		Preload("DealerProfile").
-		Preload("PrivateSellerProfile").
 		First(&user, "email = ? AND deleted_at IS NULL", email).Error
 
 	if err != nil {
@@ -103,7 +101,6 @@ func (r *userRepository) List(page, perPage int) ([]domain.User, int64, error) {
 
 	err := r.db.
 		Preload("DealerProfile").
-		Preload("PrivateSellerProfile").
 		Order("created_at DESC").
 		Limit(perPage).
 		Offset(offset).

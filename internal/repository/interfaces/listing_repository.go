@@ -29,6 +29,10 @@ type ListingRepository interface {
 	// UpdateImages replaces the images array for a listing.
 	UpdateImages(id uuid.UUID, images []string) error
 
+	// FindByVerificationStatus returns listings awaiting admin review,
+	// newest first, for the seller-verification queue.
+	FindByVerificationStatus(status domain.VerificationStatus, page, perPage int) ([]domain.Listing, int64, error)
+
 	// IncrementViewCount atomically increments the view counter for a listing.
 	IncrementViewCount(id uuid.UUID) error
 

@@ -2,6 +2,7 @@ package service
 
 import (
 	"errors"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/shikagari/api/internal/domain"
@@ -14,32 +15,56 @@ import (
 type ListingService struct {
 	listingRepo interfaces.ListingRepository
 	dealerRepo  interfaces.DealerRepository
-	sellerRepo  interfaces.PrivateSellerRepository
+	userRepo    interfaces.UserRepository
 }
 
 // NewListingService constructs a ListingService with its dependencies.
 func NewListingService(
 	listingRepo interfaces.ListingRepository,
 	dealerRepo interfaces.DealerRepository,
-	sellerRepo interfaces.PrivateSellerRepository,
+	userRepo interfaces.UserRepository,
 ) *ListingService {
 	return &ListingService{
 		listingRepo: listingRepo,
 		dealerRepo:  dealerRepo,
-		sellerRepo:  sellerRepo,
+		userRepo:    userRepo,
 	}
 }
 
 // Create creates a new vehicle listing.
-// The seller must have an approved dealer or private seller profile.
+// Dealers with an approved profile publish immediately. Buyers must supply
+// their identity with the request, then upload an NTSA e-logbook via
+// AttachELogbook to submit the listing for admin review.
 func (s *ListingService) Create(
 	userID uuid.UUID,
 	req dto.CreateListingRequest,
 ) (*dto.ListingResponse, error) {
-	// ── 1. Resolve seller type and verify approval ────────────────────────────
-	sellerType, err := s.resolveApprovedSellerType(userID)
+	// ── 1. Resolve seller type and listing visibility ────────────────────────
+	sellerType, err := s.resolveSellerType(userID)
 	if err != nil {
 		return nil, err
+	}
+
+	isDealer := sellerType == domain.SellerTypeDealer
+
+	// Buyers must prove identity and ownership before a listing goes live.
+	// Identity comes in with the create call; the NTSA e-logbook file is
+	// uploaded afterwards (POST /listings/:id/elogbook) because the upload
+	// endpoint needs the listing ID. Until that file lands the listing is a
+	// "draft" and stays out of the admin review queue.
+	if !isDealer {
+		if req.VerificationFullName == "" || req.VerificationIDNumber == "" {
+			return nil, errors.New("full name and ID number are required to list a car")
+		}
+	}
+
+	listingStatus := domain.ListingPending
+	verification := domain.VerificationDraft
+	if isDealer {
+		listingStatus = domain.ListingActive
+		verification = domain.VerificationApproved
+	} else if req.VerificationELogbook != "" {
+		verification = domain.VerificationPending
 	}
 
 	// ── 2. Build and persist the listing ─────────────────────────────────────
@@ -60,8 +85,13 @@ func (s *ListingService) Create(
 		Drivetrain:   req.Drivetrain,
 		EngineSize:   req.EngineSize,
 		Color:        req.Color,
-		Status:       domain.ListingActive,
+		Status:       listingStatus,
 		Images:       []string{},
+
+		VerificationStatus:   verification,
+		VerificationFullName: req.VerificationFullName,
+		VerificationIDNumber: req.VerificationIDNumber,
+		VerificationELogbook: req.VerificationELogbook,
 	}
 	if req.Doors != nil {
 		listing.Doors = *req.Doors
@@ -212,7 +242,15 @@ func (s *ListingService) Update(
 		listing.Color = *req.Color
 	}
 	if req.Status != nil {
-		listing.Status = domain.ListingStatus(*req.Status)
+		next := domain.ListingStatus(*req.Status)
+		// Sellers cannot self-publish: a buyer listing only becomes active once
+		// an admin has verified its NTSA e-logbook. Admins keep full control.
+		if next == domain.ListingActive &&
+			!isAdmin &&
+			listing.VerificationStatus != domain.VerificationApproved {
+			return nil, errors.New("this listing goes live once an admin approves your e-logbook")
+		}
+		listing.Status = next
 	}
 
 	if err := s.listingRepo.Update(listing); err != nil {
@@ -285,6 +323,86 @@ func (s *ListingService) AddImages(
 	return &res, nil
 }
 
+// SetCoverImage chooses which uploaded photo represents the listing on cards
+// and in search results. Only the owner or an admin may change it, and the
+// image has to belong to the listing. An empty URL clears the choice so the
+// first image is used again.
+func (s *ListingService) SetCoverImage(
+	listingID uuid.UUID,
+	userID uuid.UUID,
+	isAdmin bool,
+	imageURL string,
+) (*dto.ListingResponse, error) {
+	listing, err := s.listingRepo.FindByID(listingID)
+	if err != nil || listing == nil {
+		return nil, errors.New("listing not found")
+	}
+
+	if !isAdmin {
+		owned, err := s.listingRepo.BelongsToUser(listingID, userID)
+		if err != nil {
+			return nil, errors.New("failed to verify ownership")
+		}
+		if !owned {
+			return nil, errors.New("you do not have permission to update this listing")
+		}
+	}
+
+	if imageURL != "" {
+		found := false
+		for _, img := range listing.Images {
+			if img == imageURL {
+				found = true
+				break
+			}
+		}
+		if !found {
+			return nil, errors.New("that image does not belong to this listing")
+		}
+	}
+
+	listing.CoverImage = imageURL
+	if err := s.listingRepo.Update(listing); err != nil {
+		return nil, errors.New("failed to update listing cover image")
+	}
+
+	listing, err = s.listingRepo.FindByID(listingID)
+	if err != nil || listing == nil {
+		return nil, errors.New("listing updated but failed to reload")
+	}
+	res := dto.ToListingResponse(*listing)
+	return &res, nil
+}
+
+// AttachELogbook stores the NTSA e-logbook URL against a listing.
+// Only the listing owner may attach one, and only while the listing is
+// still awaiting verification.
+func (s *ListingService) AttachELogbook(listingID, userID uuid.UUID, url string) error {
+	listing, err := s.listingRepo.FindByID(listingID)
+	if err != nil || listing == nil {
+		return errors.New("listing not found")
+	}
+
+	owned, err := s.listingRepo.BelongsToUser(listingID, userID)
+	if err != nil || !owned {
+		return errors.New("you do not have permission to update this listing")
+	}
+
+	if listing.VerificationStatus == domain.VerificationApproved {
+		return errors.New("this listing has already been approved")
+	}
+	if listing.VerificationFullName == "" || listing.VerificationIDNumber == "" {
+		return errors.New("add your full name and ID number before uploading the e-logbook")
+	}
+
+	listing.VerificationELogbook = url
+	listing.VerificationStatus = domain.VerificationPending
+	listing.RejectionReason = ""
+	listing.Status = domain.ListingPending
+
+	return s.listingRepo.Update(listing)
+}
+
 // BuildSearchMeta constructs pagination metadata for search responses.
 func (s *ListingService) BuildSearchMeta(
 	filters dto.ListingFilterRequest,
@@ -293,34 +411,95 @@ func (s *ListingService) BuildSearchMeta(
 	return buildMeta(filters.Page, filters.PerPage, total)
 }
 
+// AdminReviewListing approves or rejects a pending buyer listing.
+// Approving flips it to active so it becomes publicly searchable.
+func (s *ListingService) AdminReviewListing(
+	listingID uuid.UUID,
+	adminID uuid.UUID,
+	req dto.AdminReviewListingRequest,
+) (*dto.ListingResponse, error) {
+	listing, err := s.listingRepo.FindByID(listingID)
+	if err != nil || listing == nil {
+		return nil, errors.New("listing not found")
+	}
+	if listing.VerificationStatus == domain.VerificationApproved {
+		return nil, errors.New("this listing has already been approved")
+	}
+	if listing.VerificationELogbook == "" {
+		return nil, errors.New("this listing has no NTSA e-logbook to verify")
+	}
+
+	if domain.VerificationStatus(req.VerificationStatus) == domain.VerificationRejected {
+		if req.RejectionReason == "" {
+			return nil, errors.New("a rejection reason is required")
+		}
+		listing.VerificationStatus = domain.VerificationRejected
+		listing.RejectionReason = req.RejectionReason
+		listing.Status = domain.ListingInactive
+	} else {
+		listing.VerificationStatus = domain.VerificationApproved
+		listing.RejectionReason = ""
+		listing.Status = domain.ListingActive
+		now := time.Now()
+		listing.VerifiedAt = &now
+		listing.VerifiedByID = &adminID
+	}
+
+	if err := s.listingRepo.Update(listing); err != nil {
+		return nil, errors.New("failed to update listing")
+	}
+
+	listing, err = s.listingRepo.FindByID(listingID)
+	if err != nil || listing == nil {
+		return nil, errors.New("listing updated but failed to reload")
+	}
+	res := dto.ToListingResponse(*listing)
+	return &res, nil
+}
+
+// ListPendingListings returns buyer listings awaiting verification.
+func (s *ListingService) ListPendingListings(page, perPage int) ([]dto.AdminListingResponse, int64, error) {
+	if page < 1 {
+		page = 1
+	}
+	if perPage < 1 || perPage > 50 {
+		perPage = 20
+	}
+
+	listings, total, err := s.listingRepo.FindByVerificationStatus(
+		domain.VerificationPending, page, perPage)
+	if err != nil {
+		return nil, 0, errors.New("failed to retrieve pending listings")
+	}
+
+	out := make([]dto.AdminListingResponse, 0, len(listings))
+	for _, l := range listings {
+		out = append(out, dto.ToAdminListingResponse(l))
+	}
+	return out, total, nil
+}
+
 // ── Private Helpers ───────────────────────────────────────────────────────────
 
-// resolveApprovedSellerType checks whether the user has an approved dealer
-// or private seller profile, and returns the corresponding SellerType.
-func (s *ListingService) resolveApprovedSellerType(userID uuid.UUID) (domain.SellerType, error) {
-	// Check dealer profile first
+// resolveSellerType determines how a listing should be attributed.
+// Dealers with an approved dealer profile list as "dealer"; everyone else
+// (buyers) lists as "private" and goes through verification.
+func (s *ListingService) resolveSellerType(userID uuid.UUID) (domain.SellerType, error) {
+	user, err := s.userRepo.FindByID(userID)
+	if err != nil || user == nil {
+		return "", errors.New("user not found")
+	}
+
 	dealer, err := s.dealerRepo.FindByUserID(userID)
 	if err != nil {
 		return "", errors.New("failed to validate seller profile")
 	}
-	if dealer != nil {
-		if dealer.ApprovalStatus != domain.ApprovalApproved {
-			return "", errors.New("your dealer profile is pending admin approval")
-		}
+	if dealer != nil && dealer.ApprovalStatus == domain.ApprovalApproved {
 		return domain.SellerTypeDealer, nil
 	}
-
-	// Fall back to private seller profile
-	seller, err := s.sellerRepo.FindByUserID(userID)
-	if err != nil {
-		return "", errors.New("failed to validate seller profile")
-	}
-	if seller != nil {
-		if seller.ApprovalStatus != domain.ApprovalApproved {
-			return "", errors.New("your private seller profile is pending admin approval")
-		}
-		return domain.SellerTypePrivate, nil
+	if dealer != nil {
+		return "", errors.New("your dealer profile is pending admin approval")
 	}
 
-	return "", errors.New("you must create and have an approved dealer or private seller profile before listing vehicles")
+	return domain.SellerTypePrivate, nil
 }

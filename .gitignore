@@ -1,2 +1,14 @@
 frontend/
 .vscode/
+
+# Local secrets — never commit (see .env.example for the template)
+.env
+
+# Build output
+bin/
+tmp/
+coverage.out
+coverage.html
+
+# User-uploaded files (NTSA e-logbooks, listing photos, dealer logos)
+uploads/

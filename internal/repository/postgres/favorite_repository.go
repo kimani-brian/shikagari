@@ -46,7 +46,6 @@ func (r *favoriteRepository) FindByUserID(
 		Preload("Listing").
 		Preload("Listing.User").
 		Preload("Listing.User.DealerProfile").
-		Preload("Listing.User.PrivateSellerProfile").
 		Order("created_at DESC").
 		Limit(perPage).
 		Offset(offset).

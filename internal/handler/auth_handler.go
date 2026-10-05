@@ -47,7 +47,14 @@ func (h *AuthHandler) Register(c *gin.Context) {
 	var req dto.RegisterRequest
 
 	if err := c.ShouldBindJSON(&req); err != nil {
-		response.BadRequest(c, validator.Validate(req))
+		// Prefer the per-field map, but fall back to the raw binding error so
+		// callers always learn *why* the payload was rejected (e.g. an
+		// unsupported role).
+		if errs := validator.Validate(req); errs != nil {
+			response.BadRequest(c, errs)
+			return
+		}
+		response.BadRequest(c, err.Error())
 		return
 	}
 

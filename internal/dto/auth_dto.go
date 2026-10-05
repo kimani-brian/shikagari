@@ -9,9 +9,9 @@ type RegisterRequest struct {
 	Phone    string `json:"phone"     binding:"required,min=10,max=20"`
 	Password string `json:"password"  binding:"required,min=8,max=72"`
 	// Role is optional — defaults to "buyer" on the backend.
-	// Accepts "buyer" (buying), "seller" (private/individual seller),
-	// or "dealer" (business dealership). "admin" is assigned manually.
-	Role string `json:"role"      binding:"omitempty,oneof=buyer seller dealer"`
+	// Buyers can list cars too, after passing NTSA e-logbook verification.
+	// "dealer" is for businesses; "admin" is assigned manually.
+	Role string `json:"role"      binding:"omitempty,oneof=buyer dealer"`
 }
 
 // LoginRequest is the payload for POST /auth/login

@@ -60,7 +60,6 @@ func Setup(cfg *config.Config, db *gorm.DB) *gin.Engine {
 		registerAuthRoutes(api, deps)
 		registerUserRoutes(api, deps)
 		registerDealerRoutes(api, deps)
-		registerPrivateSellerRoutes(api, deps)
 		registerListingRoutes(api, deps, deps.inquiryHandler)
 		registerFavoriteRoutes(api, deps)
 		registerInquiryRoutes(api, deps)
@@ -100,13 +99,12 @@ type deps struct {
 	optAuthMW  gin.HandlerFunc // soft — enriches if token present
 
 	// Handlers
-	authHandler          *handler.AuthHandler
-	userHandler          *handler.UserHandler
-	dealerHandler        *handler.DealerHandler
-	privateSellerHandler *handler.PrivateSellerHandler
-	listingHandler       *handler.ListingHandler
-	favoriteHandler      *handler.FavoriteHandler
-	inquiryHandler       *handler.InquiryHandler
+	authHandler     *handler.AuthHandler
+	userHandler     *handler.UserHandler
+	dealerHandler   *handler.DealerHandler
+	listingHandler  *handler.ListingHandler
+	favoriteHandler *handler.FavoriteHandler
+	inquiryHandler  *handler.InquiryHandler
 }
 
 // wireDependencies constructs all repositories, services, and handlers
@@ -123,7 +121,6 @@ func wireDependencies(cfg *config.Config, db *gorm.DB) *deps {
 	sessionRepo := postgres.NewSessionRepository(db)
 	securityEventRepo := postgres.NewSecurityEventRepository(db)
 	dealerRepo := postgres.NewDealerRepository(db)
-	privateSellerRepo := postgres.NewPrivateSellerRepository(db)
 	listingRepo := postgres.NewListingRepository(db)
 	favoriteRepo := postgres.NewFavoriteRepository(db)
 	inquiryRepo := postgres.NewInquiryRepository(db)
@@ -132,8 +129,7 @@ func wireDependencies(cfg *config.Config, db *gorm.DB) *deps {
 	authSvc := service.NewAuthService(userRepo, resetTokenRepo, sessionRepo, securityEventRepo, hasher, jwtManager)
 	userSvc := service.NewUserService(userRepo, hasher)
 	dealerSvc := service.NewDealerService(dealerRepo, userRepo)
-	privateSellerSvc := service.NewPrivateSellerService(privateSellerRepo, userRepo)
-	listingSvc := service.NewListingService(listingRepo, dealerRepo, privateSellerRepo)
+	listingSvc := service.NewListingService(listingRepo, dealerRepo, userRepo)
 	favoriteSvc := service.NewFavoriteService(favoriteRepo, listingRepo)
 	inquirySvc := service.NewInquiryService(inquiryRepo, listingRepo)
 
@@ -141,22 +137,20 @@ func wireDependencies(cfg *config.Config, db *gorm.DB) *deps {
 	authH := handler.NewAuthHandler(authSvc)
 	userH := handler.NewUserHandler(userSvc)
 	dealerH := handler.NewDealerHandler(dealerSvc, uploadSvc)
-	privateSellerH := handler.NewPrivateSellerHandler(privateSellerSvc, uploadSvc)
 	listingH := handler.NewListingHandler(listingSvc, uploadSvc)
 	favoriteH := handler.NewFavoriteHandler(favoriteSvc)
 	inquiryH := handler.NewInquiryHandler(inquirySvc)
 
 	return &deps{
-		jwtManager:           jwtManager,
-		authMW:               middleware.Authenticate(jwtManager, sessionRepo),
-		optAuthMW:            middleware.OptionalAuthenticate(jwtManager, sessionRepo),
-		authHandler:          authH,
-		userHandler:          userH,
-		dealerHandler:        dealerH,
-		privateSellerHandler: privateSellerH,
-		listingHandler:       listingH,
-		favoriteHandler:      favoriteH,
-		inquiryHandler:       inquiryH,
+		jwtManager:      jwtManager,
+		authMW:          middleware.Authenticate(jwtManager, sessionRepo),
+		optAuthMW:       middleware.OptionalAuthenticate(jwtManager, sessionRepo),
+		authHandler:     authH,
+		userHandler:     userH,
+		dealerHandler:   dealerH,
+		listingHandler:  listingH,
+		favoriteHandler: favoriteH,
+		inquiryHandler:  inquiryH,
 	}
 }
 
@@ -227,27 +221,6 @@ func registerDealerRoutes(rg *gin.RouterGroup, d *deps) {
 	}
 }
 
-// registerPrivateSellerRoutes mounts private seller profile endpoints.
-//
-//	POST   /api/v1/sellers/profile            [auth + seller role]
-//	GET    /api/v1/sellers/profile            [auth required]
-//	PATCH  /api/v1/sellers/profile            [auth required]
-//	POST   /api/v1/sellers/profile/photo      [auth required]
-//	GET    /api/v1/sellers/:id                [public]
-func registerPrivateSellerRoutes(rg *gin.RouterGroup, d *deps) {
-	// Public: view a private seller's profile by ID
-	rg.GET("/sellers/:id", d.privateSellerHandler.GetProfileByID)
-
-	// Authenticated: manage own private seller profile
-	sellers := rg.Group("/sellers", d.authMW)
-	{
-		sellers.POST("/profile", middleware.RequireRole(domain.RoleBuyer, domain.RoleSeller, domain.RoleAdmin), d.privateSellerHandler.CreateProfile)
-		sellers.GET("/profile", d.privateSellerHandler.GetMyProfile)
-		sellers.PATCH("/profile", d.privateSellerHandler.UpdateProfile)
-		sellers.POST("/profile/photo", d.privateSellerHandler.UploadProfilePhoto)
-	}
-}
-
 // registerListingRoutes mounts vehicle listing endpoints.
 //
 //	GET    /api/v1/listings                   [public]
@@ -266,9 +239,9 @@ func registerListingRoutes(rg *gin.RouterGroup, d *deps, inquiryH *handler.Inqui
 	// Authenticated listing management
 	listings := rg.Group("/listings", d.authMW)
 	{
-		// Seller or dealer: create a listing (service resolves seller type
-		// from the user's approved dealer / private seller profile)
-		listings.POST("", middleware.RequireSellerOrDealer(), d.listingHandler.Create)
+		// Any signed-in user: create a listing. Dealers with an approved profile
+		// go live immediately; buyers must pass NTSA e-logbook verification.
+		listings.POST("", d.listingHandler.Create)
 
 		// Owner or admin: edit and delete
 		listings.PATCH("/:id", d.listingHandler.Update)
@@ -277,8 +250,14 @@ func registerListingRoutes(rg *gin.RouterGroup, d *deps, inquiryH *handler.Inqui
 		// Owner only: manage images
 		listings.POST("/:id/images", d.listingHandler.UploadImages)
 
+		// Owner or admin: choose which photo is the card thumbnail
+		listings.PATCH("/:id/cover", d.listingHandler.SetCoverImage)
+
 		// Any authenticated user: send inquiry on a listing
 		listings.POST("/:id/inquiries", inquiryH.Send)
+
+		// Seller verification: buyer uploads their NTSA e-logbook
+		listings.POST("/:id/elogbook", d.listingHandler.UploadELogbook)
 
 		// My listings (seller dashboard)
 		listings.GET("/me", d.listingHandler.GetMyListings)
@@ -329,8 +308,9 @@ func registerInquiryRoutes(rg *gin.RouterGroup, d *deps) {
 //	PATCH  /api/v1/admin/dealers/:id/review
 //
 //	── Private seller profiles ──
-//	GET    /api/v1/admin/sellers
-//	PATCH  /api/v1/admin/sellers/:id/review
+//	── Seller verification (buyer listings) ──
+//	GET    /api/v1/admin/listings/pending
+//	PATCH  /api/v1/admin/listings/:id/verify
 func registerAdminRoutes(rg *gin.RouterGroup, d *deps) {
 	admin := rg.Group("/admin", d.authMW, middleware.RequireAdmin())
 	{
@@ -350,11 +330,11 @@ func registerAdminRoutes(rg *gin.RouterGroup, d *deps) {
 			adminDealers.PATCH("/:id/review", d.dealerHandler.AdminReviewProfile)
 		}
 
-		// ── Private seller profile review ─────────────────────────────────────
-		adminSellers := admin.Group("/sellers")
+		// ── Seller verification queue (buyer listings awaiting e-logbook) ──
+		adminListings := admin.Group("/listings")
 		{
-			adminSellers.GET("", d.privateSellerHandler.AdminListProfiles)
-			adminSellers.PATCH("/:id/review", d.privateSellerHandler.AdminReviewProfile)
+			adminListings.GET("/pending", d.listingHandler.AdminListPendingListings)
+			adminListings.PATCH("/:id/verify", d.listingHandler.AdminVerifyListing)
 		}
 	}
 }

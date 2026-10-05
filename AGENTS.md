@@ -72,7 +72,7 @@ migrations/              # Raw SQL (run manually via `make migrate` or psql)
 - **All routes defined in**: `internal/router/router.go` — search here for endpoint paths
 - **DI container**: `wireDependencies()` in `router.go` constructs repos → services → handlers
 - **Auth middleware**: `Authenticate` (strict) vs `OptionalAuthenticate` (soft) in `internal/middleware/auth_middleware.go`
-- **RBAC helpers**: `RequireSeller()`, `RequireAdmin()`, `RequireRole(...)` in `internal/middleware/role_middleware.go`
+- **RBAC helpers**: `RequireAdmin()`, `RequireRole(...)` in `internal/middleware/role_middleware.go`
 
 ## Testing
 
@@ -101,9 +101,11 @@ migrations/              # Raw SQL (run manually via `make migrate` or psql)
 - **Not found = `nil, nil`**: Repo methods return `(nil, nil)` when record missing — callers check for `nil`
 - **Response envelope**: All HTTP responses use `pkg/response` wrapper (`Success`, `Data`, `Message`, `Error`)
 - **JWT claims**: `user_id`, `email`, `role`, `is_verified`, `session_id`, `exp`
-- **Roles**: `buyer`, `seller` (private/individual), `dealer` (business), `admin` (admin assigned manually in DB)
-- **Registration**: `POST /api/v1/auth/register` accepts `role: buyer | seller | dealer` (defaults `buyer`); frontend shows Buy / Sell cards, Sell expands to Dealer / Private-seller sub-cards
-- **Seller flow**: Register with role → Create matching profile (`/dealers/profile` needs `dealer`; `/sellers/profile` allows `buyer` as upgrade path + `seller`) → Admin approves → Can create listings (`POST /listings` allows `seller` + `dealer` + `admin`)
+- **Roles**: `buyer`, `dealer` (business), `admin` (admin assigned manually in DB). There is **no** private `seller` role — individuals list from a `buyer` account.
+- **Registration**: `POST /api/v1/auth/register` accepts `role: buyer | dealer` (defaults `buyer`); frontend shows two role cards, Buying and Selling as a dealer
+- **Dealer flow**: Register with `role: dealer` → Create a dealer profile (`POST /dealers/profile`) → Admin approves → `POST /listings` publishes immediately (`status=active`, `verification_status=approved`)
+- **Individual (buyer) flow**: `POST /listings` with `verification_full_name` + `verification_id_number` creates the listing as `status=pending`, `verification_status=draft` → `POST /listings/:id/elogbook` (multipart `elogbook`) attaches the NTSA e-logbook and flips it to `verification_status=pending` → admin reviews it via `GET /admin/listings/pending` and `PATCH /admin/listings/:id/verify` → approval sets `status=active`. Buyers can never set `status=active` themselves.
+- **Public visibility**: only `status=active` listings are searchable, so drafts and unverified listings stay hidden
 - **Prices**: Kenyan Shillings (KES), stored as integers
 - **Locations**: Profile locations validated as Kenyan counties (`kenyacounty` rule, list in `internal/domain/location.go`); listing search still uses the legacy city list
 - **File uploads**: Local `./uploads/` by default; swap `UploadService.UploadImage` for S3

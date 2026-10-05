@@ -259,3 +259,124 @@ func (h *ListingHandler) UploadImages(c *gin.Context) {
 
 	response.OK(c, "Images uploaded successfully", result)
 }
+
+// SetCoverImage godoc
+// @Summary      Choose which photo is used as the listing thumbnail
+// @Tags         listings
+// @Accept       json
+// @Security     BearerAuth
+// @Param        id    path      string  true   "Listing UUID"
+// @Param        body  body      dto.SetCoverImageRequest  true  "Cover image"
+// @Success      200   {object}  response.APIResponse{data=dto.ListingResponse}
+// @Router       /listings/{id}/cover [patch]
+func (h *ListingHandler) SetCoverImage(c *gin.Context) {
+	claims := mustGetClaims(c)
+
+	id, err := parseUUID(c, "id")
+	if err != nil {
+		return
+	}
+
+	var req dto.SetCoverImageRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, err.Error())
+		return
+	}
+
+	result, svcErr := h.listingService.SetCoverImage(id, claims.UserID, isAdminUser(c), req.ImageURL)
+	if svcErr != nil {
+		response.BadRequest(c, svcErr.Error())
+		return
+	}
+
+	response.OK(c, "Cover image updated successfully", result)
+}
+
+// UploadELogbook godoc
+// @Summary      Upload the NTSA e-logbook for seller verification
+// @Tags         listings
+// @Accept       multipart/form-data
+// @Security     BearerAuth
+// @Param        id    path      string  true  "Listing UUID"
+// @Param        elogbook  formData  file    true  "NTSA e-logbook image or PDF"
+// @Success      200  {object}  response.APIResponse{data=dto.ListingResponse}
+// @Router       /listings/{id}/elogbook [post]
+func (h *ListingHandler) UploadELogbook(c *gin.Context) {
+	claims := mustGetClaims(c)
+
+	id, err := parseUUID(c, "id")
+	if err != nil {
+		return
+	}
+
+	file, header, err := c.Request.FormFile("elogbook")
+	if err != nil {
+		response.BadRequest(c, "NTSA e-logbook file is required")
+		return
+	}
+	defer file.Close()
+
+	url, uploadErr := h.uploadService.UploadELogbook(file, header)
+	if uploadErr != nil {
+		response.BadRequest(c, uploadErr.Error())
+		return
+	}
+
+	if err := h.listingService.AttachELogbook(id, claims.UserID, url); err != nil {
+		response.BadRequest(c, err.Error())
+		return
+	}
+
+	response.OK(c, "NTSA e-logbook uploaded successfully", gin.H{"verification_elogbook_url": url})
+}
+
+// AdminListPendingListings godoc
+// @Summary      List buyer listings awaiting verification (admin)
+// @Tags         admin
+// @Produce      json
+// @Security     BearerAuth
+// @Success      200  {object}  response.APIResponse
+// @Router       /admin/listings/pending [get]
+func (h *ListingHandler) AdminListPendingListings(c *gin.Context) {
+	page, perPage := getPagination(c)
+
+	listings, total, err := h.listingService.ListPendingListings(page, perPage)
+	if err != nil {
+		response.BadRequest(c, err.Error())
+		return
+	}
+
+	response.Paginated(c, "Pending listings retrieved", listings, buildPaginationMeta(page, perPage, total))
+}
+
+// AdminVerifyListing godoc
+// @Summary      Approve or reject a pending listing (admin)
+// @Tags         admin
+// @Accept       json
+// @Security     BearerAuth
+// @Param        id    path      string  true  "Listing UUID"
+// @Param        body  body      dto.AdminReviewListingRequest  true  "Review decision"
+// @Success      200  {object}  response.APIResponse{data=dto.ListingResponse}
+// @Router       /admin/listings/{id}/verify [patch]
+func (h *ListingHandler) AdminVerifyListing(c *gin.Context) {
+	claims := mustGetClaims(c)
+
+	id, err := parseUUID(c, "id")
+	if err != nil {
+		return
+	}
+
+	var req dto.AdminReviewListingRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, validator.Validate(req))
+		return
+	}
+
+	result, err := h.listingService.AdminReviewListing(id, claims.UserID, req)
+	if err != nil {
+		response.BadRequest(c, err.Error())
+		return
+	}
+
+	response.OK(c, "Listing reviewed", result)
+}

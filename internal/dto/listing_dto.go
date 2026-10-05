@@ -9,7 +9,12 @@ import (
 
 // ── Request DTOs ─────────────────────────────────────────────────────────────
 
-// CreateListingRequest is the payload for POST /listings
+// CreateListingRequest is the payload for POST /listings.
+//
+// Buyers must include the verification fields (full name, ID number and an
+// NTSA e-logbook upload reference). Their listing is created as "pending"
+// and stays hidden from public search until an admin approves it.
+// Dealers list straight away once their dealer profile is approved.
 type CreateListingRequest struct {
 	Title        string  `json:"title"        binding:"required,min=5,max=255"`
 	Description  string  `json:"description"  binding:"omitempty,max=5000"`
@@ -26,8 +31,21 @@ type CreateListingRequest struct {
 	EngineSize   string  `json:"engine_size"  binding:"omitempty,max=20"`
 	Doors        *int    `json:"doors"        binding:"omitempty,gte=2,lte=6"`
 	Color        string  `json:"color"        binding:"omitempty,max=50"`
+
+	// ── Seller verification (required for buyers) ──────────────────────────
+	VerificationFullName string `json:"verification_full_name" binding:"omitempty,max=150"`
+	VerificationIDNumber string `json:"verification_id_number" binding:"omitempty,max=30"`
+	VerificationELogbook string `json:"verification_elogbook_url" binding:"omitempty,max=500"`
+
 	// Images are uploaded separately via POST /listings/:id/images
 	// and are not part of the initial create payload.
+}
+
+// AdminReviewListingRequest is the payload for approving or rejecting a
+// pending buyer listing.
+type AdminReviewListingRequest struct {
+	VerificationStatus string `json:"verification_status" binding:"required,oneof=approved rejected"`
+	RejectionReason    string `json:"rejection_reason"   binding:"omitempty,max=500"`
 }
 
 // UpdateListingRequest is the payload for PATCH /listings/:id
@@ -48,7 +66,7 @@ type UpdateListingRequest struct {
 	EngineSize   *string  `json:"engine_size"  binding:"omitempty,max=20"`
 	Doors        *int     `json:"doors"        binding:"omitempty,gte=2,lte=6"`
 	Color        *string  `json:"color"        binding:"omitempty,max=50"`
-	Status       *string  `json:"status"       binding:"omitempty,oneof=active inactive sold"`
+	Status       *string  `json:"status"       binding:"omitempty,oneof=pending active inactive sold"`
 }
 
 // ListingFilterRequest maps query parameters for GET /listings.
@@ -98,12 +116,20 @@ type ListingResponse struct {
 	Doors        int                  `json:"doors"`
 	Color        string               `json:"color"`
 	Images       []string             `json:"images"`
+	CoverImage   string               `json:"cover_image"` // seller-chosen card photo
 	ViewCount    int                  `json:"view_count"`
 	Seller       UserSummary          `json:"seller"`
 
-	// Dealer or private seller profile summary (only one will be non-nil)
-	DealerProfile        *DealerSummary        `json:"dealer_profile,omitempty"`
-	PrivateSellerProfile *PrivateSellerSummary `json:"private_seller_profile,omitempty"`
+	// Seller verification — present on buyer-created listings
+	VerificationStatus   domain.VerificationStatus `json:"verification_status"`
+	VerificationFullName string                    `json:"verification_full_name,omitempty"`
+	VerificationIDNumber string                    `json:"verification_id_number,omitempty"`
+	VerificationELogbook string                    `json:"verification_elogbook_url,omitempty"`
+	VerifiedAt           *time.Time                `json:"verified_at,omitempty"`
+	RejectionReason      string                    `json:"rejection_reason,omitempty"`
+
+	// Dealer profile summary — only set on dealer listings
+	DealerProfile *DealerSummary `json:"dealer_profile,omitempty"`
 
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`
@@ -133,7 +159,12 @@ type ListingCardResponse struct {
 	ViewCount    int                  `json:"view_count"`
 	SellerType   domain.SellerType    `json:"seller_type"`
 	IsVerified   bool                 `json:"is_verified"` // seller verified badge
-	CreatedAt    time.Time            `json:"created_at"`
+
+	// Buyer review state — lets a seller see why their listing is not live yet
+	VerificationStatus domain.VerificationStatus `json:"verification_status"`
+	RejectionReason    string                    `json:"rejection_reason,omitempty"`
+
+	CreatedAt time.Time `json:"created_at"`
 }
 
 // ToListingResponse maps a domain.Listing to the full response DTO.
@@ -163,10 +194,18 @@ func ToListingResponse(l domain.Listing) ListingResponse {
 		Doors:        l.Doors,
 		Color:        l.Color,
 		Images:       images,
+		CoverImage:   l.CoverImage,
 		ViewCount:    l.ViewCount,
 		Seller:       ToUserSummary(l.User),
 		CreatedAt:    l.CreatedAt,
 		UpdatedAt:    l.UpdatedAt,
+
+		VerificationStatus:   l.VerificationStatus,
+		VerificationFullName: l.VerificationFullName,
+		VerificationIDNumber: l.VerificationIDNumber,
+		VerificationELogbook: l.VerificationELogbook,
+		VerifiedAt:           l.VerifiedAt,
+		RejectionReason:      l.RejectionReason,
 	}
 
 	if l.User.DealerProfile != nil {
@@ -174,20 +213,46 @@ func ToListingResponse(l domain.Listing) ListingResponse {
 		res.DealerProfile = &s
 	}
 
-	if l.User.PrivateSellerProfile != nil {
-		s := ToPrivateSellerSummary(*l.User.PrivateSellerProfile)
-		res.PrivateSellerProfile = &s
-	}
-
 	return res
+}
+
+// CoverThumbnail picks the photo that represents a listing on cards and in
+// search results: the seller's chosen cover when it is still one of the
+// listing's images, otherwise the first image.
+func CoverThumbnail(l domain.Listing) string {
+	if l.CoverImage != "" {
+		for _, img := range l.Images {
+			if img == l.CoverImage {
+				return l.CoverImage
+			}
+		}
+	}
+	if len(l.Images) > 0 {
+		return l.Images[0]
+	}
+	return ""
+}
+
+// AdminListingResponse is a ListingResponse plus the seller's email address.
+// Reviewing an ownership claim needs a way to trace the account, but the public
+// listing endpoints must never expose seller emails, so this shape is produced
+// only for admin-only routes.
+type AdminListingResponse struct {
+	ListingResponse
+	SellerEmail string `json:"seller_email"`
+}
+
+// ToAdminListingResponse maps a domain.Listing to the admin review DTO.
+func ToAdminListingResponse(l domain.Listing) AdminListingResponse {
+	return AdminListingResponse{
+		ListingResponse: ToListingResponse(l),
+		SellerEmail:     l.User.Email,
+	}
 }
 
 // ToListingCardResponse maps a domain.Listing to the lightweight card DTO.
 func ToListingCardResponse(l domain.Listing) ListingCardResponse {
-	thumbnail := ""
-	if len(l.Images) > 0 {
-		thumbnail = l.Images[0]
-	}
+	thumbnail := CoverThumbnail(l)
 
 	return ListingCardResponse{
 		ID:           l.ID,
@@ -210,6 +275,17 @@ func ToListingCardResponse(l domain.Listing) ListingCardResponse {
 		ViewCount:    l.ViewCount,
 		SellerType:   l.SellerType,
 		IsVerified:   l.User.IsVerified,
-		CreatedAt:    l.CreatedAt,
+
+		VerificationStatus: l.VerificationStatus,
+		RejectionReason:    l.RejectionReason,
+
+		CreatedAt: l.CreatedAt,
 	}
+}
+
+// SetCoverImageRequest selects the photo used as the listing's card thumbnail.
+type SetCoverImageRequest struct {
+	// ImageURL must be one of the listing's own uploaded images. An empty
+	// value clears the choice and falls back to the first image.
+	ImageURL string `json:"image_url" binding:"omitempty,max=500"`
 }

@@ -45,9 +45,25 @@ const (
 type ListingStatus string
 
 const (
+	// ListingPending is a buyer-created listing awaiting NTSA e-logbook
+	// review. It is hidden from all public search and detail endpoints
+	// until an admin approves it.
+	ListingPending  ListingStatus = "pending"
 	ListingActive   ListingStatus = "active"
 	ListingInactive ListingStatus = "inactive"
 	ListingSold     ListingStatus = "sold"
+)
+
+// VerificationStatus tracks admin review of a buyer-submitted listing.
+// A draft is a buyer listing that has not had its NTSA e-logbook attached yet,
+// so it never reaches the admin review queue.
+type VerificationStatus string
+
+const (
+	VerificationDraft    VerificationStatus = "draft"
+	VerificationPending  VerificationStatus = "pending"
+	VerificationApproved VerificationStatus = "approved"
+	VerificationRejected VerificationStatus = "rejected"
 )
 
 // SellerType distinguishes between dealer and private seller listings
@@ -115,13 +131,28 @@ type Listing struct {
 	Mileage      int          `gorm:"not null"                                       json:"mileage"` // in kilometres
 	FuelType     FuelType     `gorm:"type:varchar(20);not null"                      json:"fuel_type"`
 	Transmission Transmission `gorm:"type:varchar(20);not null"                      json:"transmission"`
-	Drivetrain   string       `gorm:"type:varchar(10)"                               json:"drivetrain"` // 2WD, 4WD, AWD (optional)
+	Drivetrain   string       `gorm:"type:varchar(10)"                               json:"drivetrain"`  // 2WD, 4WD, AWD (optional)
 	EngineSize   string       `gorm:"type:varchar(20)"                               json:"engine_size"` // e.g. 3.0L (optional)
 	Doors        int          `gorm:"default:0"                                      json:"doors"`       // 0 = not specified
 	Color        string       `gorm:"type:varchar(50)"                               json:"color"`
 
 	// Images stored as a PostgreSQL text array (URLs to uploaded images)
 	Images pq.StringArray `gorm:"type:text[]"                                    json:"images"`
+
+	// CoverImage is the photo chosen by the seller to represent the listing.
+	// Empty means "fall back to the first image".
+	CoverImage string `gorm:"type:text" json:"cover_image"`
+
+	// ── Seller verification (buyer-created listings only) ──────────────────
+	// Buyers submit identity and ownership proof alongside the listing.
+	// The listing stays "pending" and hidden until an admin approves.
+	VerificationStatus   VerificationStatus `gorm:"type:varchar(20);not null;default:'pending'" json:"verification_status"`
+	VerificationFullName string             `gorm:"type:varchar(150)"                                json:"verification_full_name"`
+	VerificationIDNumber string             `gorm:"type:varchar(30)"                                 json:"verification_id_number"`
+	VerificationELogbook string             `gorm:"type:text"                                        json:"verification_elogbook_url"`
+	VerifiedAt           *time.Time         `json:"verified_at"`
+	VerifiedByID         *uuid.UUID         `gorm:"type:uuid"                                        json:"verified_by_id"`
+	RejectionReason      string             `gorm:"type:text"                                        json:"rejection_reason"`
 
 	// View counter — lightweight engagement metric
 	ViewCount int `gorm:"not null;default:0"                             json:"view_count"`
