@@ -100,6 +100,7 @@ type deps struct {
 
 	// Handlers
 	authHandler     *handler.AuthHandler
+	ssoHandler      *handler.SSOHandler
 	userHandler     *handler.UserHandler
 	dealerHandler   *handler.DealerHandler
 	listingHandler  *handler.ListingHandler
@@ -135,6 +136,7 @@ func wireDependencies(cfg *config.Config, db *gorm.DB) *deps {
 
 	// ── Handlers ──────────────────────────────────────────────────────────────
 	authH := handler.NewAuthHandler(authSvc)
+	ssoH := handler.NewSSOHandler(cfg.SSO.SharedSecret)
 	userH := handler.NewUserHandler(userSvc)
 	dealerH := handler.NewDealerHandler(dealerSvc, uploadSvc)
 	listingH := handler.NewListingHandler(listingSvc, uploadSvc)
@@ -146,6 +148,7 @@ func wireDependencies(cfg *config.Config, db *gorm.DB) *deps {
 		authMW:          middleware.Authenticate(jwtManager, sessionRepo),
 		optAuthMW:       middleware.OptionalAuthenticate(jwtManager, sessionRepo),
 		authHandler:     authH,
+		ssoHandler:      ssoH,
 		userHandler:     userH,
 		dealerHandler:   dealerH,
 		listingHandler:  listingH,
@@ -167,6 +170,7 @@ func wireDependencies(cfg *config.Config, db *gorm.DB) *deps {
 //	GET    /api/v1/auth/sessions           [auth required]
 //	DELETE /api/v1/auth/sessions/:id       [auth required]
 //	POST   /api/v1/auth/logout             [auth required]
+//	POST   /api/v1/internal/auction/sso    [auth required]
 func registerAuthRoutes(rg *gin.RouterGroup, d *deps) {
 	auth := rg.Group("/auth")
 	{
@@ -181,6 +185,21 @@ func registerAuthRoutes(rg *gin.RouterGroup, d *deps) {
 		auth.GET("/sessions", d.authMW, d.authHandler.ListSessions)
 		auth.DELETE("/sessions/:id", d.authMW, d.authHandler.RevokeSession)
 		auth.POST("/logout", d.authMW, d.authHandler.Logout)
+	}
+
+	registerInternalRoutes(rg, d)
+}
+
+// registerInternalRoutes mounts server-to-server endpoints. These are
+// authenticated like everything else; what makes them internal is that only
+// our own services call them.
+func registerInternalRoutes(rg *gin.RouterGroup, d *deps) {
+	internal := rg.Group("/internal")
+	{
+		// Mint a one-time handoff ticket carrying the caller's identity into
+		// the auction engine. The web app fetches this and navigates the
+		// browser to the engine's handoff endpoint.
+		internal.POST("/auction/sso", d.authMW, d.ssoHandler.MintAuctionTicket)
 	}
 }
 

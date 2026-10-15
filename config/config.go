@@ -16,6 +16,7 @@ type Config struct {
 	App      AppConfig
 	Database DatabaseConfig
 	JWT      JWTConfig
+	SSO      SSOConfig
 	Upload   UploadConfig
 }
 
@@ -46,6 +47,13 @@ func (d DatabaseConfig) DSN() string {
 type JWTConfig struct {
 	Secret      string
 	ExpiryHours int
+}
+
+// SSOConfig holds the secret shared with the auction engine for handoff
+// tickets. Empty disables minting; the engine cannot verify what was never
+// signed, so both sides fail closed.
+type SSOConfig struct {
+	SharedSecret string
 }
 
 type UploadConfig struct {
@@ -81,6 +89,9 @@ func Load() *Config {
 		JWT: JWTConfig{
 			Secret:      getEnvRequired("JWT_SECRET"),
 			ExpiryHours: getEnvInt("JWT_EXPIRY_HOURS", 72),
+		},
+		SSO: SSOConfig{
+			SharedSecret: getEnv("SSO_SHARED_SECRET", ""),
 		},
 		Upload: UploadConfig{
 			Dir:           getEnv("UPLOAD_DIR", "./uploads"),
