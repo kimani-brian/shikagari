@@ -461,7 +461,17 @@ This satisfies LIVE-6 and NFR-5 without building a delta protocol we do not need
 
 ## 7. API contracts
 
-### 7.1 SSO handoff (Phase 1)
+### 7.1 SSO handoff
+
+> **Phase 1 ships "direct trust", not tickets.** The engine verifies
+> marketplace-issued JWTs with a shared secret and confirms anything sensitive
+> (role, active status, dealer approval, listing ownership) over the bridge by
+> forwarding the caller's own token — the marketplace stays the authority and
+> needs zero changes. The one-time HMAC ticket flow below is the Phase 4
+> hardening for cross-domain handoffs; it is specified here so Phase 1 does
+> not paint it into a corner.
+
+#### 7.1.1 One-time HMAC ticket flow (Phase 4)
 
 Sequence for a logged-in user clicking **Auctions**:
 
