@@ -248,6 +248,7 @@ Server error codes map to fixed UI copy. No generic "Something went wrong" on mo
 | `NOT_FUNDS_SETTLED` | Pending state + retry | "Waiting for your M-Pesa payment to confirm." |
 | `ACCOUNT_NOT_VERIFIED` | Blocking panel linking to verification | "Verify your account before bidding." |
 | `ENGINE_BUSY` | Toast, auto-retry in 2s | "Busy — trying again." |
+| `RATE_LIMITED` | Inline under the bid pad, clears on next allowed bid | "Slow down — too many bids. Try again in a few seconds." |
 | `NETWORK` | Reconnecting strip | "Reconnecting — your last bid is safe." |
 
 ---
